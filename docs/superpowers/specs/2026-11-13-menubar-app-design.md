@@ -1,175 +1,141 @@
-# Menu Bar App (Swift) - Design
+# Menu Bar App (Swift) - Design, v2
 
-Date: 2026-11-13. Branch/worktree: `menubar-app` (`.claude/worktrees/menubar-app`).
-Spec context: `CLAUDE.md` sections "Check-ins", "Notification", "Architecture", "Privacy rules".
+Date: 2026-11-13 (v2 same day). Branch/worktree: `menubar-app` (`.claude/worktrees/menubar-app`).
+Spec context: `CLAUDE.md` sections "Key definitions", "Check-ins", "Notification", "Architecture", "Privacy rules".
+
+**v2 change (user decision, 2026-11-13):**
+- The signed Swift app now **does the activity sampling itself** and writes the encrypted DB directly. Accessibility and Automation belong only to the app, never to Python.
+- The Python LaunchAgent logger is uninstalled. `logger/` stays in the repo as the reference implementation and test oracle.
+- The v1 Python stdio bridge is **dropped**, so the app never spawns Python.
+- Signing uses a stable self-signed certificate.
 
 ## Intent
-A native macOS menu bar app that is the user-facing front end of the Python logger. It has two jobs:
-1. **Deliver check-ins and nudges** as actionable notifications and send each tap back as a label. Check-ins are the highest-quality labels in the system, so this is what makes training data possible.
-2. **Let the user see what is being collected.** The user can confirm the logger is running and capturing the right things (and nothing it shouldn't), and see the day so far.
+One native macOS menu bar app that:
+1. **Collects the activity data** with exactly the Python logger's semantics, every 4 s, into the shared SQLCipher DB, so `data.windows`, `labels/` and `hsmm/` keep working unchanged.
+2. **Delivers check-ins and nudges** that Python components queue in `notify_outbox`, and writes the answers back as labels.
+3. **Lets the user see what is collected**: live health, today's timeline, raw samples, events, check-ins.
 
-Python stays the brain: it decides *when* to ask or nudge, owns the encrypted DB, and runs the model. Swift is display and input only.
+Python stays the brain for decisions: check-in triggers and budget (`labels/`), the nudge rule (`nudge/` in the hsmm runner), the model, and training. These run as their own launchd jobs and need only DB + Keychain access, never TCC permissions.
 
 ## Goals
-- A menu bar item that is always present, with a popover showing logger health, today's counts, and the current model readout if one exists.
-- Check-ins appear in a **floating check-in panel** (user decision, 2026-11-13) with all six answers visible for one tap: [Working] [Short break] [Drifting] [Rabbit hole] [Away] [Skip]. It sits under the menu bar icon. It is non-modal and never takes focus or key status. It shows a 60 s countdown, then closes and is recorded as `dismissed`. Response latency is recorded.
-- Nudge notifications with [Back to work] [I'm on break] [Snooze 20 min], recorded as nudge responses.
-- A viewer window with:
-  - Today: a timeline strip of the day.
-  - Samples: the most recent samples (time, app, domain, title, idle, switches, activity flags). Excluded and private samples are shown as such.
-  - Events: logger start and stop, sleep and wake, lock, gaps, and missing permissions.
-  - Check-ins: history of what was asked and answered.
-- Robust to Python being down: the app shows "bridge not running" or "logger not running", restarts the bridge with backoff, and never crashes.
+- **Sampling parity with `logger/`** (contract from the logger session, 2026-11-13):
+  - **Probe order per tick:** locked first; when locked, skip the window and browser probes. Then frontmost, then the AX window, then the browser (only if the bundle id is in `browsers`), then idle and input recency.
+  - **Failing probes:** a failing probe gives NULL plus one warning per probe; it never stops the tick.
+  - **`dt`:**
+    - On the first tick, when elapsed > `max_gap_s` (15), or when elapsed ≤ 0: `dt = sample_interval_s` (4).
+    - In the gap and clock-backwards cases, also write a `gap` event at the *previous* tick's ts with detail `"<elapsed, 1 decimal>s"`.
+    - Otherwise, `dt` = elapsed.
+  - **Privacy rule order:** locked → excluded (checked on the raw sanitized domain + raw title, for every app) → browser private handling. Under `unknown_private_policy` `drop` (the default), private=1 or unknown means title and domain become NULL.
+  - **Field details:**
+    - Non-browser apps: domain and private are NULL.
+    - Activity flags: `int(seconds_since < dt)`.
+    - `idle_s` = seconds since any input.
+    - `app_switches` = NSWorkspace activations since the previous tick.
+  - **URL sanitizing:** http/https only, lowercased host, no port or userinfo, one leading `www.` stripped.
+  - **Matching:** domain suffix match is exact or on a dot boundary. Domain keywords are plain substrings. Financial title keywords become `(?<!\w)(?:frag)(?!\w)`, case-insensitive. User `title_patterns` are case-insensitive regexes.
+  - **Config:** `logger/config.yaml` + `logger/financial.yaml` (always appended; it can't be disabled) + optional `logger/config.local.yaml` (lists append, scalars override). These are parsed **at runtime** from the repo, the single source of truth. Validation matches Python.
+  - **Timeouts:** AX messaging 0.5 s, browser query (osascript) 1.5 s.
+  - **Parity proof:** the Swift builder reproduces every case in `tests/fixtures/sample_cases.json`, which is generated from the Python `build_sample` and kept in sync by a Python test.
+- **Events:** `logger_start`/`logger_stop` (app start/quit), `sleep`, `wake`, `screens_sleep`, `screens_wake`, `lock`, `unlock`, `gap`, and `permission_missing` (once per launch when Accessibility is not granted, detail `accessibility`).
+- **Check-ins:** a **floating check-in panel** (user decision) with six one-tap answers: [Working] [Short break] [Drifting] [Rabbit hole] [Away] [Skip].
+  - It is non-activating and never takes key or main status. It plays no sound.
+  - It shows a 60 s countdown, then closes as `dismissed`.
+- **Nudges:** native notifications with [Back to work] [I'm on break] [Snooze 20 min]. If notifications are denied, the floating panel is used instead.
+- **Popover:**
+  - Sampler health: last sample age, and permissions with "Grant" buttons (Accessibility; Automation per running browser, shown as granted or not).
+  - DB state, today's counts, the model line.
+  - [Open viewer], [Test check-in], Launch at login, Quit.
+  - A warning if `~/Library/LaunchAgents/com.metalfocus.logger.plist` exists, because two writers would duplicate samples.
+- **Viewer:** tabs for Today (timeline), Samples, Events, Check-ins.
 
-## Non-goals (v1)
-- No logging in Swift (the v2 Swift logger is a separate, later project).
-- No model code in Swift. No direct DB or Keychain access from Swift.
-- No daily-review editing UI (where you tap a session to relabel it). The viewer is read-only apart from notification answers. Daily review comes later and will reuse the same bridge.
-- No Xcode project file, App Store or notarization. The app is built with SwiftPM plus a script, and ad-hoc signed.
+## Non-goals (v2)
+- No model, labeling, check-in trigger or nudge-decision logic in Swift.
+- No daily-review editing UI.
+- No App Store, notarization or Developer ID; this is for personal use on this Mac.
+- No Screen Recording, no Input Monitoring.
 
-## Anti-goals (failure even if it works)
-- Any data leaving the machine: no network code at all in the app or the bridge.
-- The app causing a new SQLCipher key to be minted, or touching the Keychain item at all. If the bridge hits `KeyMissingError`, it reports `key_missing` and stops serving data. The popover shows this error.
-- Any keyboard or mouse hook: no `NSEvent` global monitors and no event taps in the app (user privacy rule; enforced by a source-grep test like the logger's).
-- The app starting, stopping or installing the logger. The `com.metalfocus.logger` LaunchAgent owns it. The popover only reports whether samples are fresh, and when they aren't it shows the command to run (`uv run python -m logger install`).
-- Check-ins that steal focus, play sounds, or persist on screen past 60 s.
-- Swift and Python both encoding the windowing or label rules. That logic is defined once, in Python.
+## Anti-goals
+- **Any data leaving the machine.** The app makes no network requests. (Downloading packages at build time is fine.)
+- **Minting a key when the DB exists.** A key is created only if *no key exists AND no DB file exists*. If the DB exists without a key, the app refuses to sample, and the popover says "Database key missing from Keychain — refusing to create a new one."
+- **Any keyboard or mouse hook:** no `CGEventTap*`, NSEvent global or local monitors, `IOHIDManager` or `CGRequestListenEventAccess`. Input activity comes only from `CGEventSourceSecondsSinceLastEventType`.
+- **Python inheriting the app's TCC grants.** The app never launches Python or `uv`. Its only child process is `/usr/bin/osascript` for browser queries, whose Apple Events are *meant* to count as the app's. A source-guard test enforces this.
+- **Check-ins that steal focus,** play sounds, or stay up longer than 60 s.
+- **Swift re-encoding windowing or label rules.**
 
-## Approaches
-- **A. Python bridge over stdio (chosen).** The app spawns `uv run python -m bridge` and talks newline-delimited JSON over stdin/stdout. Python alone opens the DB, via the logger's `data.db.open_existing()`. Chosen because:
-  - notifications need a channel from Python regardless (triggers, budget and nudge rule are Python);
-  - it avoids Keychain ACL prompts on every ad-hoc-signed rebuild;
-  - the windowing and label schema is still in flux and stays private to Python;
-  - check-in writes (split, precedence) live in one place.
-  - Cost: Python must be running, and the protocol must be versioned.
-- **B. Swift reads SQLCipher directly** (SQLCipher via SPM plus Keychain read). Rejected: it adds Keychain prompts, puts schema knowledge in two places, and still needs a separate notification channel.
-- **C. Local HTTP server in Python + Swift client.** Rejected: it opens a port, which is unnecessary attack surface on a privacy app. stdio gives the same thing with no socket.
+## Approaches (v2)
+- **A. The app samples and owns DB I/O directly (chosen by user).** SQLCipher via SPM. The app never spawns Python, so nothing can inherit permissions. Cost: two third-party Swift packages, and Python readers get a one-time Keychain "Always Allow" prompt for the key item the app created.
+- **B. A Python bridge launched by launchd, over a Unix socket.** Rejected: more moving parts, and Swift still needs SQLCipher to write samples.
+- **C. The stdio bridge spawned with responsibility disclaimed.** Rejected: it relies on a private API.
+- v1's "Python bridge over stdio" was right while Python sampled. With sampling in Swift, the same argument (one program owns DB and key access) now favours Swift.
 
 ## Architecture
-
 ```
-MetalFocusBar.app (Swift, LSUIElement)
-  BridgeClient ──spawn──> uv run python -m bridge   (cwd = repo root)
-      stdin  : requests  {"id":7,"method":"samples","params":{...}}
-      stdout : responses {"id":7,"result":...} | {"id":7,"error":{...}}
-               events    {"event":"show_checkin","data":{...}}
-  NotificationController (UNUserNotificationCenter)
+MetalFocusBar.app (Swift, LSUIElement, signed "Metal Focus Dev")
+  Sampler (4 s, off-main) ── MacProbes (NSWorkspace, AX, osascript, CGEventSource, CGSession)
+         └─ SampleBuilder (pure; fixture-tested) ─> Store.writeSample
+  WorkspaceObserver ── switch counter + sleep/wake/lock events ─> Store.writeEvent
+  Store (actor; one SQLCipher connection, WAL)
+     writes samples, events, prompt answers; polls notify_outbox every 2 s; sweeps expired
+     reads status / samples / events / timeline / checkins / readouts for the UI
+  PromptCoordinator ─> CheckinPanel (NSPanel) / NudgeNotifier (UNUserNotificationCenter)
   MenuBarExtra popover + Viewer window (SwiftUI)
 
-bridge (Python)
-  reads   samples / events / checkins / readouts   (via data.db.open_existing)
-  polls   notify_outbox every 2 s -> emits show_checkin / show_nudge
-  writes  checkins.response, nudge_responses, notify_outbox.delivered_at
+Python (separate launchd jobs, no TCC): labels.checkins, hsmm.runner (+ nudge/) write
+notify_outbox + checkins/nudge_responses; read via data.db.open_existing.
 ```
 
-### Notification source: an outbox table
-Python components never talk to Swift directly. Anything that wants to notify inserts a row into `notify_outbox`: the check-in scheduler (labels/), the nudge engine (nudge/), and a test CLI. The bridge polls the outbox, forwards undelivered rows as events, and marks them delivered. This decouples the logger, check-in and nudge work (other branches) from the app. The UI also works today, before those exist: `uv run python -m bridge test-checkin` / `test-nudge` insert a row.
+### DB and key (must match `data/db.py` exactly)
+- **Path:** `~/Library/Application Support/metal-focus/activity.db` (dir 0700; file and `-wal`/`-shm` 0600). The `MFHome` user default overrides the dir (the Swift equivalent of `METAL_FOCUS_HOME`).
+- **Cipher:** SQLCipher 4 community defaults. The first statement is `PRAGMA key = "x'<64 lowercase hex>'"`, then `SELECT count(*) FROM sqlite_master` (failure → wrong key), then `PRAGMA journal_mode=WAL`.
+- **Keychain:** a generic password with service `metal-focus`, account `sqlcipher-key`, and the 64 hex chars as its value. It's created via `SecItemAdd` only under the anti-goal rule. Python's `keyring` reads the same item.
+- **Schema:** the app executes the repo's `data/schema.sql` (all `IF NOT EXISTS`) on open, read at runtime from `MFRepoPath`, so the schema has one source. It includes `checkins`, `notify_outbox` and `nudge_responses`.
+- **Writes:** short transactions. Python processes share the WAL file concurrently.
 
-### Tables involved (all three created by `bridge/schema.sql` for now; see Ownership)
-- `checkins`: exactly the CLAUDE.md column list: `id, asked_at, trigger, window_start, window_end, model_top_state, model_top_prob, response, responded_at, split`. The scheduler inserts the row when it asks (`response` NULL). The bridge sets `asked_at` to the shown time and fills `response`/`responded_at`.
-- `nudge_responses`: `id, nudge_id, asked_at, responded_at, response (back_to_work|on_break|snooze|dismissed), response_latency_s, window_start, window_end`.
-- `notify_outbox`: `id, created_at, kind (checkin|nudge), ref_id, payload_json, delivered_at, expires_at`. `ref_id` points to the `checkins.id` or the nudge id. `payload_json` carries display text (nudge body, e.g. "YouTube -> Reddit -> YouTube, 12 min in").
-- Ownership (agreed with the logger session `metal-focus-d1`, 2026-11-13):
-  - **`bridge/schema.sql` creates all three tables for now** with `CREATE TABLE IF NOT EXISTS`. Logger's `labels/` will later move the `checkins` and `nudge_responses` DDL into `data/` *unchanged*, so their shapes are frozen by this doc.
-  - `checkins` has **exactly** the CLAUDE.md columns. There is no extra latency column. Latency is derived as `responded_at - asked_at`: the scheduler sets `asked_at` when it inserts the outbox row, and the bridge overwrites it with the moment the notification was actually shown.
-  - `nudge_responses` adds `response_latency_s REAL`. `response` ∈ {back_to_work, on_break, snooze, dismissed}. `dismissed` is not a label, and `labels/merge` ignores it. (Agreed with d1.)
-  - Every time column is an epoch-seconds REAL.
-  - The `split` column (train|eval) is set by whoever *asks* (the scheduler), never by the bridge. Eval-split check-ins must never reach training.
-  - **Expiry (agreed with d1).** The scheduler sets `expires_at = created_at + 60`.
-    - **Shown and never answered by `expires_at`:** the notification is withdrawn and `response='dismissed'` is written. `dismissed` and `skip` are distinct values, and the "skip 3 in a row" back-off needs that distinction.
-    - **Expired before it was ever shown** (app or bridge down): the bridge writes no response and leaves `response` NULL, because the user was never asked. *(My call.)*
-    - `labels/merge` ignores `dismissed`, `skip` and NULL. Nudge cooldown still counts a dismissed nudge.
-  - **Late delivery.** An outbox row is never shown after its `expires_at`. The 10-min look-back was fixed at ask time, so showing it late would label the wrong windows. Budget accounting is the scheduler's concern.
-  - **Nudge rows.** The nudge engine pre-inserts the `nudge_responses` row with `response` NULL, like check-ins, and puts its `id` in `ref_id`. `nudge_id` is the engine's own identifier; there is no separate `nudges` table. *(My call.)*
-  - **Test prompts never touch the label tables.** `test-checkin` / `test-nudge` insert only an outbox row with `ref_id` NULL and `payload_json.test = true`. Answers to test prompts go to the bridge log only, so test data can never reach merge, training or eval. *(My call.)*
-  - **No decision logic in the bridge.** When to ask, the budget, suppression and the nudge rule live in `labels/` and `nudge/`. The bridge only relays prompts and writes responses. Write transactions are short, because the logger LaunchAgent writes the same WAL-mode file concurrently.
+### Prompts: the outbox contract (agreed with metal-focus-d1 and metal-focus-fd)
+- **How Python queues a prompt:** it inserts the label row (`checkins`, response NULL, trigger + split set; or `nudge_responses`, response NULL, uuid in `nudge_id`). In the same transaction it inserts `notify_outbox` (`kind`, `ref_id` = label row id, `expires_at = created_at + 60`, `payload_json` = `{question}` / `{body, ...}`).
+- **Polling:** the app polls undelivered, unexpired rows every 2 s. A row is never shown after `expires_at`.
+- **When a prompt is shown:** `delivered_at = now`, and the label row's `asked_at = now`.
+- **Answers:**
+  - Writes are first-write-wins (`WHERE response IS NULL`).
+  - `checkins.response` ∈ {Working, Short break, Drifting, Rabbit hole, Away, skip, dismissed}.
+  - `nudge_responses.response` ∈ {back_to_work, on_break, snooze, dismissed}, plus `response_latency_s = responded_at - asked_at`.
+- **Sweep:** delivered rows whose `expires_at + 30 s` has passed with a NULL response become `dismissed`, with `responded_at = expires_at` (covers a crash while a prompt was on screen). Rows that were never shown stay NULL.
+- **Test prompts** (popover button): an outbox row with `ref_id NULL` and `payload.test = true`. Answers are only logged; they never touch label tables.
+- **Readout:** the latest `readouts` row with `model='hsmm'`, decoded from the `readout` JSON. It's null when the table is missing, the table is empty, or `written_at` is more than 5 min old; the UI then shows "model not running". `away=true` shows as "Away / paused". Everything but `risk` may be null. `forecast_risk` keys are strings.
 
-### Protocol v1 (JSON lines)
-Requests use `method` + `params`. A response echoes `id`. Each message is one JSON object per line, UTF-8. Timestamps are Unix seconds (float), matching `samples.ts`.
+### Timeline (viewer "Today")
+Consecutive same-label samples in the local day:
+- label = app name, "Excluded" (excluded=1), or "Away" (locked=1 or idle_s ≥ 90);
+- `source="samples"`.
 
-| method | params | result |
-|---|---|---|
-| `hello` | `{client_version}` | `{protocol: 1, db_path, schema_version}` |
-| `status` | - | `{logger_running, last_sample_ts, samples_today, excluded_today, last_event, permissions?}` |
-| `samples` | `{since?, limit=200}` | list of sample rows. `window_title`/`domain` are null when excluded |
-| `events` | `{since?, limit=100}` | list of event rows |
-| `timeline` | `{day: "YYYY-MM-DD"}` | list of `{start, end, label, source}` segments; see below |
-| `checkins` | `{limit=50}` | list of check-in rows |
-| `readout` | - | latest model `Readout` as a dict, or null |
-| `checkin_response` | `{checkin_id, response, shown_at, responded_at}` | `{ok}` |
-| `nudge_response` | `{nudge_id, response, shown_at, responded_at}` | `{ok}` |
-| `ack_delivered` | `{outbox_id}` | `{ok}` |
-
-Events (no `id`): `show_checkin {outbox_id, checkin_id, question, expires_at}`, `show_nudge {outbox_id, nudge_id, body}`, `status_changed {...}`.
-
-`logger_running` is derived from the age of `last_sample_ts`: newer than 3 x `sample_interval_s` means running. No process inspection is needed.
-
-`timeline`, staged:
-- Until `data/windows.py` lands: segments come from raw samples, grouped by consecutive app (label = app name or "Excluded"/"Away" based on idle).
-- Once windowing exists: 2-min windows with dominant category.
-- Once `labels/merge.py` exists: final labels + `source`.
-- The bridge picks whichever is available via guarded imports. Swift renders a list of segments either way and does not know which stage it is.
-
-`readout`: the source is the `readouts` table, owned and created by `hsmm/runner.py` on hsmm-mlx (`uv run python -m hsmm.runner`, its own process):
-```
-readouts(window_start REAL, model TEXT, day TEXT, written_at REAL, params TEXT, readout TEXT,
-         PRIMARY KEY(window_start, model))
-```
-- The bridge runs `SELECT window_start, day, written_at, readout FROM readouts WHERE model='hsmm' ORDER BY window_start DESC LIMIT 1` and decodes `readout` (the JSON of `asdict(Readout)`). It uses plain SQL, not an import of `hsmm`, to keep cross-branch imports to `data.db` only. *(My call.)*
-- The result is null, and the UI shows "model not running", when the table is missing, empty, or `written_at` is older than 5 min.
-- The bridge and app never start the runner. Like the logger, it runs on its own. *(My call.)* The fields are `dataclasses.asdict(Readout)` from `common.model_api`:
-- `risk` is the only guaranteed field; every other field may be null (e.g. for the later GRU).
-- `p_state` order is [Working, Short break, Drifting, Rabbit hole].
-- `minutes_in_state` applies to the top state only.
-- `forecast_risk` keys arrive as strings ("1", "3", "5").
-- `away=true` is shown as "Away / paused", not as a risk value.
+Window and label-based segments come later and are not in scope.
 
 ## Swift side
-- SwiftPM package at `app/MetalFocusBar/`, macOS 14+, Swift 6 strict concurrency, no third-party dependencies.
+- SwiftPM package `app/MetalFocusBar/`, macOS 14+, Swift 6 language mode.
+- Dependencies (verified to build 2026-11-13):
+  - `https://github.com/sqlcipher/SQLCipher.swift` (product `SQLCipher`, 4.20.0 community);
+  - `https://github.com/jpsim/Yams` (5.x).
+  - SwiftPM runs with `--disable-keychain`, so it never asks for GitHub credentials.
 - Targets:
-  - `MetalFocusCore` (library): protocol models (Codable), `BridgeClient` (actor; `Process` + pipes; line framing; request/response correlation with timeouts; event `AsyncStream`; restart with exponential backoff capped at 60 s), view models.
-  - `MetalFocusBar` (executable): SwiftUI `App` with `MenuBarExtra(.window)` + a `Window` scene for the viewer, plus `NotificationController`.
-  - `MetalFocusCoreTests`.
-- Check-in panel (`CheckinPanelController`):
-  - an `NSPanel` subclass with `.nonactivatingPanel` + `.borderless` (or `.hudWindow`) style, `canBecomeKey = false` and `canBecomeMain = false`, at `.floating` level, `collectionBehavior` `[.canJoinAllSpaces, .fullScreenAuxiliary]`, hosting a SwiftUI view.
-  - Positioned just below the status item (fallback: the top-right of the main screen). No sound.
-  - Clicking a button never activates the app (`NSApp.activate` is never called). The frontmost app keeps focus; that can be checked by hand with `NSWorkspace.frontmostApplication` before and after.
-  - Shows a 60 s countdown. On timeout it closes and sends `checkin_response` with `dismissed`. `shown_at` is when the panel appeared, and latency is `responded_at - shown_at`.
-  - Only one panel at a time. If a second check-in arrives while one is open, the newer one replaces it, and the old one is recorded as `dismissed`. *(My call.)*
-- Nudges stay native notifications:
-  - `UNUserNotificationCenter` category `NUDGE` with 3 actions. The default banner style is fine for these.
-  - Tapping the body with no action counts as `dismissed`.
-  - Notification permission is requested on first launch. If it is denied, nudges fall back to the same floating panel with 3 buttons.
-- `app/build-app.sh`:
-  - runs `swift build -c release`;
-  - assembles `build/MetalFocusBar.app` with `Info.plist` (`LSUIElement=1`, bundle id `com.metalfocus.menubar`, `MFRepoPath` = repo root baked at build time);
-  - ad-hoc signs with `codesign -s -`.
-  - Optional `--install` copies it to `~/Applications`.
-- Launching the bridge:
-  - `uv` is located from, in order: the `MFUvPath` user default, `~/.local/bin/uv`, `/opt/homebrew/bin/uv`, `/usr/local/bin/uv`.
-  - It is run as `uv run --project <repo> python -m bridge` with `cwd = repo`, so the uv-managed interpreter (which holds the Keychain item and TCC grants) is the one that opens the DB.
-  - The bridge's stderr is appended to `~/Library/Logs/metal-focus/bridge.err.log`.
-- Launch at login: `SMAppService.mainApp` toggle in the popover. It is off by default.
+  - **`MetalFocusCore`** (library, unit-tested): `LoggerConfig`, `Privacy`, `SampleBuilder` (+ observation types), `Sampler` (probes behind a protocol), `SwitchCounter`, `KeyStore` + `KeychainKeyStore`, `Database` (SQLCipher wrapper + open/create rules), `Store`, `PromptCoordinator`, and the UI models.
+  - **`MetalFocusBar`** (executable): `MacProbes`, `WorkspaceObserver`, `Permissions`, `AppModel`, and the views/controllers.
+  - **`MetalFocusCoreTests`**: golden-fixture parity, config, privacy, sampler, DB/key rules, store and outbox (ported from the v1 Python bridge tests), coordinator, and source guards.
+- **Threading:** `Store` is an actor owning the one connection. Sampler ticks run off-main (AX and osascript can block 0.5 s / 1.5 s), and ticks never overlap.
+- **Login:** `SMAppService.mainApp` is registered **on first launch** (my call: it is now the data logger, so collection should survive reboots). There's a toggle in the popover.
+- **Signing:**
+  - `app/make-cert.sh` creates the self-signed code-signing identity "Metal Focus Dev" in the login keychain (openssl → p12 → `security import`, then `security add-trusted-cert -p codeSign`, which prompts once for the user's password). It is idempotent.
+  - `app/build-app.sh` builds release, assembles `app/build/MetalFocusBar.app` (Info.plist: `CFBundleIdentifier com.metalfocus.menubar`, `LSUIElement`, `MFRepoPath`), and runs `codesign --force -s "Metal Focus Dev"`. If the identity is missing, it fails with a hint. `--install` copies the app to `~/Applications`.
+  - TCC grants then stick across rebuilds.
 
-## Python side (`bridge/`)
-- `bridge/__main__.py`: CLI with three modes:
-  - `serve` (the default, stdio loop);
-  - `test-checkin`;
-  - `test-nudge`.
-- `bridge/server.py`: request dispatch, an outbox poll thread, and stdout writes behind one lock. Unknown method → error response. Malformed line → error response with `id: null`, keep running.
-- `bridge/store.py`: the only module that touches SQL.
-  - `open_store()` calls `data.db.open_existing()` (logger branch, be82def). It never creates a DB or key and raises `FileNotFoundError` / `KeyMissingError` / `WrongKeyError`, which `status` reports as `no_db` / `key_missing` / `wrong_key`. It then applies `bridge/schema.sql`.
-  - DB errors from the real store are `sqlcipher3.Error`, which does **not** inherit from `sqlite3.Error`. Tests use plain `sqlite3`, so `store.py` exposes one `DB_ERRORS` tuple (`sqlcipher3.Error`, `sqlite3.Error`). Every read and write is guarded by it, and failures come back as error responses, never as a crashed bridge.
-  - Tests inject a plain `sqlite3` connection with the logger schema loaded.
-- Tests (`tests/bridge/`): protocol round-trips, outbox delivery and ack, check-in response writes (latency, dismissed is not a label), excluded samples redacted in output, never-create-key behaviour, malformed input survival.
+## Python side
+- Remove `bridge/` and `tests/bridge/`; their logic and tests are ported to Swift `Store`.
+- `logger/` is unchanged (it's the reference).
+- `CLAUDE.md`: the app is the logger now, plus its commands, and don't run `python -m logger install` alongside it.
 
 ## Privacy
-- The viewer shows titles and domains already stored. It never shows anything for excluded samples beyond "Excluded".
-- The app has no network entitlement use, makes no URL requests, and the bridge imports no networking modules (a test greps for `socket`, `urllib`, `http`, `requests`).
-
-## Dependencies on other branches
-- `logger` branch: `data.db` (`connect`, `KeyringStore`, `KeyMissingError`), `common.paths`, schema v1. The bridge imports `data.db` lazily. Until the logger branch merges, its tests run on plain sqlite3, and `serve` against the real DB needs the logger branch merged first.
-- `hsmm-mlx` branch: `common.model_api.Readout` field names (used only as dict keys for display).
+- Same rules as the Python logger, proven by the shared fixture.
+- The viewer redacts excluded and private rows (title, domain, app and bundle are null).
+- No network APIs in the app (source guard: `URLSession`, `URLRequest`, `NWConnection`).
 
 ## Left to the builder
-View layout details, colors (one color per category, plus excluded and away), icons (SF Symbols), the popover's exact contents, error copy, backoff constants, and how the viewer paginates samples.
+View layout and colors, SF Symbols, error copy, viewer pagination, and the tick scheduling mechanism (it must not overlap ticks).
