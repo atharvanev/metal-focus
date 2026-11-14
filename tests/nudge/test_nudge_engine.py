@@ -7,7 +7,7 @@ import pytest
 from hsmm.runner import LiveRunner
 from nudge.engine import is_holdout, on_tick
 from nudge.rule import Point, load_config, replay, should_fire
-from nudge.text import build_body, hops, session_start_index
+from nudge.text import build_body, hops, session_start_index, window_kinds
 
 # Exact DDL from metal-focus-87 (bridge/schema.sql). Test fixture only: nudge/ never creates these.
 BRIDGE_DDL = """
@@ -61,26 +61,44 @@ def test_rule_cooldown_ten_windows():
 # ---------------------------------------------------------------- text
 
 
-WORK, DIST = ("Coding", "Docs"), ("Chat", "Video", "Social")
+def _start(cats_or_windows):
+    ws = [w if isinstance(w, W) else W(i, w, 0) for i, w in enumerate(cats_or_windows)]
+    kinds, gap_ok = window_kinds(ws, CFG)
+    return session_start_index(kinds, gap_ok)
 
 
-def test_session_start_allows_one_window_work_blip():
-    ws = [W(0, "Coding", 0), W(1, "Coding", 0), W(2, "Video", 0), W(3, "Docs", 0), W(4, "Social", 0), W(5, "Video", 0)]
-    assert session_start_index(ws, WORK, DIST) == 2
-    ws2 = ws[:2] + [W(2, "Video", 0), W(3, "Docs", 0), W(4, "Docs", 0), W(5, "Video", 0)]
-    assert session_start_index(ws2, WORK, DIST) == 5
+def test_session_start_allows_one_window_blip():
+    assert _start(["Coding", "Coding", "Video", "Docs", "Social", "Video"]) == 2
+    assert _start(["Coding", "Coding", "Video", "Docs", "Docs", "Video"]) == 5
+    assert _start(["Coding", "Video", "Other", "Video"]) == 1  # one neutral window is a blip (matches labels/)
+    assert _start(["Coding", "Video", "Excluded", "Social"]) == 1
+    assert _start(["Coding", "Video", "Video", "Docs"]) == 1  # current window is a blip so far
 
 
 @pytest.mark.parametrize("boundary", ["Excluded", "Other"])
-def test_excluded_and_other_end_the_session(boundary):
+def test_excluded_or_other_stretch_ends_the_session(boundary):
     """An hour of confidential (Excluded) work before YouTube must not become part of the session."""
-    ws = [W(0, "Coding", 0)] + [W(1 + i, boundary, 0) for i in range(10)] + [W(11 + i, "Video", 0) for i in range(3)]
-    assert session_start_index(ws, WORK, DIST) == 11
+    assert _start(["Coding"] + [boundary] * 10 + ["Video"] * 3) == 11
 
 
 def test_away_ends_the_session():
-    ws = [W(0, "Video", 0), W(1, "Video", 0, is_away=1), W(2, "Social", 0)]
-    assert session_start_index(ws, WORK, DIST) == 2
+    assert _start([W(0, "Video", 0), W(1, "Video", 0, is_away=1), W(2, "Social", 0)]) == 2
+
+
+def test_live_session_start_matches_hindsight_autolabel():
+    """Live nudges and the auto-labeler must agree on where a session starts."""
+    from labels.autolabel import window_kinds as lk
+    from labels.config import load_labels_config
+
+    cats = ["Coding", "Video", "Other", "Social", "Coding", "Coding", "Excluded", "Video", "Chat", "Docs", "Video"]
+    ws = [W(i, c, 0) for i, c in enumerate(cats)]
+    lc = load_labels_config()
+    assert window_kinds(ws, CFG)[0] == lk(ws, lc)
+    for end in range(1, len(ws) + 1):
+        kinds = lk(ws[:end], lc)
+        if kinds[-1] == "D":
+            s = session_start_index(kinds, lc.GAP_OK)
+            assert kinds[s] == "D" and all(k != "A" for k in kinds[s:end])
 
 
 def test_hops_collapse_and_truncate():

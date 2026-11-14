@@ -12,43 +12,62 @@ from typing import Any, Sequence
 
 
 def work_categories(cfg: dict) -> tuple[str, ...]:
-    try:  # labels/ owns the canonical list once it lands
-        from labels.config import load_labels_config  # type: ignore[import-not-found]
+    try:  # labels/ owns the canonical list
+        from labels.config import load_labels_config
 
         return tuple(load_labels_config().work_categories)
     except ImportError:
         return tuple(cfg["work_categories"])
 
 
-def session_start_index(
-    windows: Sequence[Any], work: tuple[str, ...], distraction: tuple[str, ...], gap_ok: int = 1
-) -> int:
-    """Index of the first window of the distraction session ending at windows[-1].
+def window_kinds(windows: Sequence[Any], cfg: dict) -> tuple[list[str], int]:
+    """('A'|'W'|'D'|'N' per window, GAP_OK), from labels/ so live nudges and hindsight
+    labels agree on session boundaries. Falls back to nudge/config.yaml."""
+    try:
+        from labels.autolabel import window_kinds as kinds_fn
+        from labels.config import load_labels_config
 
-    Only distraction categories (Chat, Video, Social) extend the session; up to
-    `gap_ok` consecutive work windows are tolerated as a blip. Everything else
-    is a boundary: Away, `Excluded` (e.g. confidential work apps, which must
-    never be swept into a session) and `Other`. The session's start becomes
-    nudge_responses.window_start, and a "Back to work" answer hard-labels that
-    whole range, so erring short is the safe direction.
+        lc = load_labels_config()
+        return kinds_fn(windows, lc), lc.GAP_OK
+    except ImportError:
+        work, dist = tuple(cfg["work_categories"]), tuple(cfg["distraction_categories"])
+        kinds = [
+            "A" if getattr(w, "is_away", False) else "W" if w.category in work else "D" if w.category in dist else "N"
+            for w in windows
+        ]
+        return kinds, 1
+
+
+def session_start_index(kinds: Sequence[str], gap_ok: int = 1) -> int:
+    """Index of the first window of the distraction session ending at the last window.
+
+    Same rule as labels/autolabel.py (agreed with metal-focus-d1): only
+    distraction windows (D) start/extend a session; Away (A) always ends it; a
+    run of <= gap_ok work/neutral windows (W/N, where N = Other/Excluded) between
+    two distraction windows is a blip inside the session; a longer run ends it.
+    So an Excluded *stretch* (confidential work) is never swept into a session.
+    The start becomes nudge_responses.window_start, which a "Back to work"
+    answer hard-labels.
     """
-    i = len(windows) - 1
-    start = i
-    blip = 0
-    while i >= 0:
-        w = windows[i]
-        if getattr(w, "is_away", False):
+    n = len(kinds)
+    start = n - 1
+    j = n - 1
+    while j >= 0:
+        k = kinds[j]
+        if k == "D":
+            start = j
+            j -= 1
+        elif k == "A":
             break
-        if w.category in work:
-            blip += 1
-            if blip > gap_ok:
+        else:  # run of W/N windows
+            v = j
+            while v >= 0 and kinds[v] in "WN":
+                v -= 1
+            # short run preceded by distraction: a blip (or, at the very end, a blip so far)
+            if j - v <= gap_ok and v >= 0 and kinds[v] == "D":
+                j = v
+            else:
                 break
-        elif w.category in distraction:
-            blip = 0
-            start = i
-        else:  # Excluded, Other, unknown
-            break
-        i -= 1
     return start
 
 
@@ -82,7 +101,8 @@ def build_body(conn, windows: Sequence[Any], cfg: dict) -> tuple[str, float]:
     """(message body, session start epoch s) for the session ending at windows[-1]."""
     work = work_categories(cfg)
     ws = cfg["window_s"]
-    s = session_start_index(windows, work, tuple(cfg["distraction_categories"]))
+    kinds, gap_ok = window_kinds(windows, cfg)
+    s = session_start_index(kinds, gap_ok)
     t0 = float(windows[s].window_start)
     t1 = float(windows[-1].window_start) + ws
     minutes = round((t1 - t0) / 60)
