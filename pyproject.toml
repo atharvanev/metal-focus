@@ -10,6 +10,7 @@ dependencies = [
     "sqlcipher3-wheels",
     "keyring",
     "pyyaml",
+    "mlx>=0.32.4",
 ]
 
 [dependency-groups]
