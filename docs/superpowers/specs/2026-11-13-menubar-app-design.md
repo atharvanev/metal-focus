@@ -36,7 +36,7 @@ Python stays the brain: it decides *when* to ask or nudge, owns the encrypted DB
 - Swift and Python both encoding the windowing or label rules. That logic is defined once, in Python.
 
 ## Approaches
-- **A. Python bridge over stdio (chosen).** The app spawns `uv run python -m bridge` and talks newline-delimited JSON over stdin/stdout. Python alone opens the DB, using the logger's `KeyringStore` + `data.db.connect`. Chosen because:
+- **A. Python bridge over stdio (chosen).** The app spawns `uv run python -m bridge` and talks newline-delimited JSON over stdin/stdout. Python alone opens the DB, via the logger's `data.db.open_existing()`. Chosen because:
   - notifications need a channel from Python regardless (triggers, budget and nudge rule are Python);
   - it avoids Keychain ACL prompts on every ad-hoc-signed rebuild;
   - the windowing and label schema is still in flux and stays private to Python;
@@ -57,7 +57,7 @@ MetalFocusBar.app (Swift, LSUIElement)
   MenuBarExtra popover + Viewer window (SwiftUI)
 
 bridge (Python)
-  reads   samples / events / checkins / readouts   (via data.db.connect)
+  reads   samples / events / checkins / readouts   (via data.db.open_existing)
   polls   notify_outbox every 2 s -> emits show_checkin / show_nudge
   writes  checkins.response, nudge_responses, notify_outbox.delivered_at
 ```
@@ -65,7 +65,7 @@ bridge (Python)
 ### Notification source: an outbox table
 Python components never talk to Swift directly. Anything that wants to notify inserts a row into `notify_outbox`: the check-in scheduler (labels/), the nudge engine (nudge/), and a test CLI. The bridge polls the outbox, forwards undelivered rows as events, and marks them delivered. This decouples the logger, check-in and nudge work (other branches) from the app. The UI also works today, before those exist: `uv run python -m bridge test-checkin` / `test-nudge` insert a row.
 
-### Tables involved (only `notify_outbox` is created by the bridge, in `bridge/schema.sql`; see Ownership)
+### Tables involved (all three created by `bridge/schema.sql` for now; see Ownership)
 - `checkins`: exactly the CLAUDE.md column list: `id, asked_at, trigger, window_start, window_end, model_top_state, model_top_prob, response, responded_at, split`. The scheduler inserts the row when it asks (`response` NULL). The bridge sets `asked_at` to the shown time and fills `response`/`responded_at`.
 - `nudge_responses`: `id, nudge_id, asked_at, responded_at, response (back_to_work|on_break|snooze|dismissed), response_latency_s, window_start, window_end`.
 - `notify_outbox`: `id, created_at, kind (checkin|nudge), ref_id, payload_json, delivered_at, expires_at`. `ref_id` points to the `checkins.id` or the nudge id. `payload_json` carries display text (nudge body, e.g. "YouTube -> Reddit -> YouTube, 12 min in").
