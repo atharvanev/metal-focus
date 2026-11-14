@@ -1,0 +1,45 @@
+# HSMM settings. Labeler thresholds live in labels/config.yaml (not here).
+
+window_minutes: 2
+max_duration: 30            # D, in windows (60 min)
+
+states: [Working, Short break, Drifting, Rabbit hole]
+categories: [Coding, Docs, Chat, Video, Social]   # anything else = missing observation
+
+# switch_count -> bin: low if <= low_max, med if <= med_max, else high
+switch_bins:
+  low_max: 1
+  med_max: 4
+
+# Away windows freeze the belief. A run of this many Away windows (or more)
+# is treated as a sequence break: belief restarts from pi afterwards.
+away_break_windows: 15      # 30 min
+
+emission_floor: 1.0e-4      # also floors A off-diagonal and pi
+min_occupancy: 1.0e-3        # below this weighted time-in-state, a state's rows don't change
+underflow_c: 1.0e-30         # a day whose per-window normalizer drops below this is skipped in training
+
+# Nightly evidence-weighted update (pseudo-counts for today's tables)
+prior:
+  B: 20.0                   # windows
+  C: 20.0                   # windows
+  A: 10.0                   # switches
+  duration: 10.0            # stretches
+  pi: 10.0                  # days / sequence starts
+
+labels:
+  soft_on: 0.9              # auto-labels
+  soft_off: 0.1
+  hard_off: 1.0e-6          # "hard" clamps (check-ins, nudge responses): tiny, never 0,
+                            # so e.g. a 70-min labeled rabbit hole (> D) stays possible
+  checkin_weight: 3.0
+  nudge_weight: 1.0
+
+# Readouts
+forecast_windows: [1, 3, 5]
+
+# Used by nudge/ (kept here so all model-facing thresholds are in one file)
+nudge:
+  risk_threshold: 0.6
+  consecutive_windows: 2
+  cooldown_windows: 10
