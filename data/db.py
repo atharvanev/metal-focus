@@ -99,3 +99,21 @@ class DbSink:
     def write_event(self, ts: float, kind: str, detail: str | None = None) -> None:
         self.conn.execute("INSERT INTO events (ts, kind, detail) VALUES (?, ?, ?)", (ts, kind, detail))
         self.conn.commit()
+
+
+def open_existing(db_path: Path | None = None, store: KeyStore | None = None) -> sqlcipher3.Connection:
+    """Open the logger's database for a reader (HSMM runner, bridge). Never creates the DB or a key.
+
+    Raises FileNotFoundError if the DB doesn't exist yet, KeyMissingError if its key is gone, and
+    WrongKeyError if the key doesn't decrypt it. Defaults to ``common.paths.db_path()`` and the Keychain.
+    """
+    if db_path is None:
+        from common.paths import db_path as default_db_path
+
+        db_path = default_db_path()
+    if not Path(db_path).exists():
+        raise FileNotFoundError(f"{db_path} does not exist yet (is the logger running?)")
+    key = (store or KeyringStore()).get()
+    if not key:
+        raise KeyMissingError(f"{db_path} exists but its key is missing from the key store.")
+    return connect(Path(db_path), key)

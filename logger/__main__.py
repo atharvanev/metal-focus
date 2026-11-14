@@ -1,4 +1,4 @@
-"""CLI: uv run python -m logger {run,check,status}."""
+"""CLI: uv run python -m logger {run,check,status,install,uninstall}."""
 
 from __future__ import annotations
 
@@ -71,8 +71,13 @@ def cmd_check() -> int:
 
 def main(argv: list[str] | None = None, key_store: KeyStore | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m logger")
-    parser.add_argument("command", choices=["run", "check", "status"])
+    parser.add_argument("command", choices=["run", "check", "status", "install", "uninstall"])
     args = parser.parse_args(argv)
+    if args.command in ("install", "uninstall"):
+        from logger import launchd
+
+        launchd.install() if args.command == "install" else launchd.uninstall()
+        return 0
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     store = key_store or KeyringStore()
     if args.command == "run":

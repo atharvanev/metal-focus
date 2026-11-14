@@ -128,3 +128,31 @@ def test_schema_has_no_content_columns(tmp_path):
     conn = _open(tmp_path / "a.db", FakeKeyStore())
     cols = {r[1] for r in conn.execute("pragma table_info(samples)")}
     assert cols == SAMPLE_COLUMNS
+
+
+def test_open_existing_never_creates_db_or_key(tmp_path):
+    from data.db import open_existing
+
+    store = FakeKeyStore()
+    with pytest.raises(FileNotFoundError):
+        open_existing(tmp_path / "a.db", store)
+    assert store.get() is None and not (tmp_path / "a.db").exists()
+
+
+def test_open_existing_key_missing_raises(tmp_path):
+    from data.db import open_existing
+
+    p = tmp_path / "a.db"
+    _open(p, FakeKeyStore()).close()
+    with pytest.raises(KeyMissingError):
+        open_existing(p, FakeKeyStore())
+
+
+def test_open_existing_reads(tmp_path):
+    from data.db import open_existing
+
+    p, store = tmp_path / "a.db", FakeKeyStore()
+    conn = _open(p, store)
+    DbSink(conn).write_sample(FakeSample())
+    conn.close()
+    assert open_existing(p, store).execute("select count(*) from samples").fetchone()[0] == 1

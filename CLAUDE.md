@@ -3,7 +3,7 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Repo status
-As of 2026-11-13 the repo has the uv project setup (`pyproject.toml`, `uv.lock`, `.python-version`) but no application code, tests, or lint config yet. The spec below is the source of truth; the "Suggested repo layout" and "First task" sections describe what to scaffold.
+As of 2026-11-13 the v1 activity logger (`logger/`, `data/db.py`) is built; windowing, labels, check-ins, nudges and evaluation are not (HSMM lives on the `hsmm-mlx` branch, the Swift menu bar app on `menubar-app`). The spec below is the source of truth; the "Suggested repo layout" and "First task" sections describe what to scaffold.
 
 ## Environment and commands (uv only)
 Python is managed **only by uv**: a uv-managed CPython 3.13 is pinned in `.python-version`, and `pyproject.toml` sets `python-preference = "only-managed"`. Never use pip, conda, brew Python or system Python for this repo. The project is not an installable package (`package = false`); top-level dirs are imported from the repo root (pytest `pythonpath = ["."]`).
@@ -15,6 +15,13 @@ Python is managed **only by uv**: a uv-managed CPython 3.13 is pinned in `.pytho
 - Skip tests that hit real macOS APIs/permissions: `uv run pytest -m "not macos"`
 - macOS permissions (Accessibility, Input Monitoring, Automation) attach to the launching binary. For this repo that is the uv-managed interpreter under `~/.local/share/uv/python/`, or the terminal/IDE that launches it.
 - MLX is not a dependency yet; add it with `uv add mlx` when the HSMM work starts.
+
+## Logger (v1)
+- `uv run python -m logger check`: list the permissions (Accessibility, Automation per running browser) and prompt for Accessibility.
+- `uv run python -m logger run`: run in the foreground (Ctrl-C to stop). `... status`: sample count, last sample, recent events.
+- `uv run python -m logger install` / `uninstall`: LaunchAgent `com.metalfocus.logger`. Its permissions belong to the uv-managed interpreter behind `.venv/bin/python`, so grant them again after the first install.
+- Data: `~/Library/Application Support/metal-focus/activity.db` (SQLCipher; override the dir with `METAL_FOCUS_HOME`). The key lives in Keychain (service `metal-focus`, account `sqlcipher-key`). If the DB exists but the key is gone, the logger refuses to start rather than mint a new key. Readers (bridge, HSMM runner) use `data.db.open_existing()`, which never creates a key.
+- **Privacy, set by the user (2026-11-13):** no keyboard or mouse hooks of any kind (no event taps, no global monitors, no Input Monitoring permission). Typing/click/scroll come only from macOS's "seconds since last event" timers, stored as 0/1 per-sample flags; `tests/logger/test_cli.py::test_no_input_hooks_in_source` guards this. Financial sites and apps are excluded automatically via `logger/financial.yaml` (always on). Extra exclusions and IBM repo title patterns go in `logger/config.local.yaml` (gitignored). Private/incognito windows store no title or domain; Safari can't report private windows, so Safari titles and domains are dropped unless `unknown_private_policy: keep`.
 
 ## Framework decision: MLX everywhere
 All model code (HSMM now, GRU/hybrid later) is written in **MLX** so the GRU port is the same framework, with shared array code, no NumPy/MLX conversion at the boundary, and one set of tests/utilities.
@@ -40,7 +47,7 @@ The **HSMM is the primary model** and gets built first. It has ~35 parameters, w
 2. Leave a clear interface for the GRU/hybrid later. Do not build the GRU yet.
 
 ## Key definitions
-- **Window:** a fixed 2-minute slice of time. The logger samples every 3-5 s; each window collapses to its dominant app category (most time). Also store per window: app switch count, idle seconds, typing/click/scroll rates.
+- **Window:** a fixed 2-minute slice of time. The logger samples every 3-5 s; each window collapses to its dominant app category (most time). Also store per window: app switch count, idle seconds, and the fraction of samples with typing/click/scroll activity (no input hooks; see Logger (v1)).
 - **Distraction session:** contiguous non-work windows, allowing a 1-window work blip.
 - **Short break:** back to work within 10 min (5 windows).
 - **Rabbit hole:** session lasts 20+ min (10 windows) OR chains through 3+ distinct distraction apps/sites without returning to work. (Thresholds tunable.)
@@ -154,7 +161,7 @@ Hybrid rules: use only the HSMM's live (past-only) outputs as features, and fit 
 | App category | HSMM emission (and GRU) |
 | App switches per window (binned) | HSMM emission (and GRU) |
 | Idle seconds | Away handling (and GRU) |
-| Typing, clicks, scrolling | GRU only (store now) |
+| Typing, clicks, scrolling (fraction of active samples; no input hooks) | GRU only (store now) |
 | Time of day, breaks this hour, minutes worked before, deadlines | GRU only for now (possible HSMM transition covariates later) |
 
 ## Evaluation
@@ -209,7 +216,7 @@ tests/         synthetic recovery tests for hsmm/
 
 ## First task for Claude Code
 1. Scaffold the repo with the layout above.
-2. Write the v1 Python logger (frontmost app, window title, browser URL every 3-5 s; idle, switches, typing/click/scroll rates) writing to an encrypted local SQLite DB, with exclude lists for sensitive apps and private windows.
+2. Write the v1 Python logger (frontmost app, window title, browser URL every 3-5 s; idle, switches, typing/click/scroll activity flags) writing to an encrypted local SQLite DB, with exclude lists for sensitive apps and private windows.
 3. Write windowing (2-min windows with dominant category + stats), the auto-labeler (thresholds from config), the label merge step, and the check-in system (triggers, suppression rules, budget, `checkins` table; prompt via a simple macOS notification in v1) per the specs above.
 4. Implement the HSMM in `hsmm/` per the spec: parameters, forward step, backward pass, nightly update, and a simulator. Add tests that sample synthetic days from known parameters and check filtering accuracy and parameter recovery.
 5. Stub the GRU interface only.
