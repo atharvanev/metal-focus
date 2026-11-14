@@ -23,6 +23,9 @@ cp "$BIN" "$OUT/Contents/MacOS/MetalFocusBar"
 ditto "$(dirname "$BIN")/SQLCipher.framework" "$OUT/Contents/Frameworks/SQLCipher.framework"
 install_name_tool -add_rpath "@executable_path/../Frameworks" "$OUT/Contents/MacOS/MetalFocusBar"
 cp "$REPO/app/Info.plist.in" "$OUT/Contents/Info.plist"
+# App icon (render with app/make-icon.sh) and the menu bar template icon.
+cp "$REPO/app/Assets/AppIcon.icns" "$OUT/Contents/Resources/AppIcon.icns"
+cp "$REPO/app/Assets/rabbit-logo-mono.svg" "$OUT/Contents/Resources/MenuBarIcon.svg"
 # Bundle the config and schema so the app never reads the repo at runtime (the repo is under
 # ~/Documents, which would need a Documents-folder permission). Rebuild after changing them.
 CFG="$OUT/Contents/Resources/repo"

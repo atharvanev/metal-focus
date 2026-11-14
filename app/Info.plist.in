@@ -3,9 +3,10 @@
 <plist version="1.0">
 <dict>
   <key>CFBundleIdentifier</key><string>com.metalfocus.menubar</string>
-  <key>CFBundleName</key><string>Metal Focus</string>
-  <key>CFBundleDisplayName</key><string>Metal Focus</string>
+  <key>CFBundleName</key><string>Metal Rabbit</string>
+  <key>CFBundleDisplayName</key><string>Metal Rabbit</string>
   <key>CFBundleExecutable</key><string>MetalFocusBar</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>0.1.0</string>
   <key>CFBundleVersion</key><string>1</string>

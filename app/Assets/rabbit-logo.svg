@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="1024" height="1024" role="img" aria-label="Metal rabbit logo">
+<defs>
+<linearGradient id="chrome" x1="0" y1="30" x2="0" y2="362" gradientUnits="userSpaceOnUse">
+<stop offset="0" stop-color="#f7f9fb"/>
+<stop offset="0.3" stop-color="#a7b0b9"/>
+<stop offset="0.5" stop-color="#eef1f4"/>
+<stop offset="0.53" stop-color="#5a626b"/>
+<stop offset="0.75" stop-color="#cfd5db"/>
+<stop offset="1" stop-color="#78818b"/>
+</linearGradient>
+<linearGradient id="edge" x1="120" y1="30" x2="300" y2="362" gradientUnits="userSpaceOnUse">
+<stop offset="0" stop-color="#ffffff"/>
+<stop offset="0.5" stop-color="#6b737c"/>
+<stop offset="1" stop-color="#e3e7eb"/>
+</linearGradient>
+<linearGradient id="inner" x1="0" y1="50" x2="0" y2="185" gradientUnits="userSpaceOnUse">
+<stop offset="0" stop-color="#2c3238"/>
+<stop offset="1" stop-color="#8a939c"/>
+</linearGradient>
+</defs>
+<g transform="translate(0,8)" fill="#000000" opacity="0.55">
+<path d="M168 205 C140 160 128 90 142 48 C150 26 172 26 180 48 C192 90 192 160 186 205 Z"/>
+<path d="M232 205 C260 160 272 90 258 48 C250 26 228 26 220 48 C208 90 208 160 214 205 Z"/>
+<ellipse cx="200" cy="272" rx="98" ry="86"/>
+</g>
+<g fill="url(#chrome)" stroke="url(#edge)" stroke-width="3">
+<path d="M168 205 C140 160 128 90 142 48 C150 26 172 26 180 48 C192 90 192 160 186 205 Z"/>
+<path d="M232 205 C260 160 272 90 258 48 C250 26 228 26 220 48 C208 90 208 160 214 205 Z"/>
+<ellipse cx="200" cy="272" rx="98" ry="86"/>
+</g>
+<path d="M168 182 C153 142 147 94 155 64 C159 52 168 52 171 64 C177 94 178 142 176 182 Z" fill="url(#inner)"/>
+<path d="M232 182 C247 142 253 94 245 64 C241 52 232 52 229 64 C223 94 222 142 224 182 Z" fill="url(#inner)"/>
+<ellipse cx="158" cy="226" rx="44" ry="13" transform="rotate(-22 158 226)" fill="#ffffff" opacity="0.4"/>
+<ellipse cx="164" cy="264" rx="10" ry="13" fill="#12161b"/>
+<ellipse cx="236" cy="264" rx="10" ry="13" fill="#12161b"/>
+<circle cx="167" cy="259" r="3" fill="#ffffff"/>
+<circle cx="239" cy="259" r="3" fill="#ffffff"/>
+<path d="M188 296 Q200 291 212 296 Q207 309 200 311 Q193 309 188 296 Z" fill="#12161b"/>
+<path d="M200 311 L200 324" stroke="#12161b" stroke-width="3" stroke-linecap="round"/>
+</svg>

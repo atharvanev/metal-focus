@@ -7,7 +7,7 @@ struct PopoverView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Metal Focus").font(.headline)
+            Text("Metal Rabbit").font(.headline)
             if let err = model.startupError {
                 Label(err, systemImage: "exclamationmark.triangle").foregroundStyle(.red)
             } else if let s = model.lastSample {
@@ -22,7 +22,7 @@ struct PopoverView: View {
                 }
             }
             Divider()
-            Button("Quit Metal Focus") { NSApp.terminate(nil) }
+            Button("Quit Metal Rabbit") { NSApp.terminate(nil) }
         }
         .padding(12)
         .frame(width: 320)

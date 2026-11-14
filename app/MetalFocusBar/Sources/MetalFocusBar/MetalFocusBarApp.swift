@@ -30,8 +30,25 @@ struct MetalFocusBarApp: App {
         MenuBarExtra {
             PopoverView(model: AppDelegate.model)
         } label: {
-            Image(systemName: AppDelegate.model.startupError == nil ? "scope" : "exclamationmark.triangle")
+            if AppDelegate.model.startupError == nil {
+                Image(nsImage: MenuBarIcon.image)
+            } else {
+                Image(systemName: "exclamationmark.triangle")
+            }
         }
         .menuBarExtraStyle(.window)
     }
+}
+
+/// The mono rabbit logo as a template image, so the menu bar tints it for light/dark mode.
+/// Falls back to an SF Symbol when run outside the bundle (e.g. `swift run`).
+enum MenuBarIcon {
+    @MainActor static let image: NSImage = {
+        let img = Bundle.main.url(forResource: "MenuBarIcon", withExtension: "svg").flatMap(NSImage.init(contentsOf:))
+            ?? NSImage(systemSymbolName: "hare", accessibilityDescription: "Metal Rabbit")!
+        img.size = NSSize(width: 18, height: 18)
+        img.isTemplate = true
+        img.accessibilityDescription = "Metal Rabbit"
+        return img
+    }()
 }
