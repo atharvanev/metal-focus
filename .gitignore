@@ -8,3 +8,5 @@ __pycache__/
 .DS_Store
 logger/config.local.yaml
 labels/categories.local.yaml
+app/MetalFocusBar/.build/
+app/build/
