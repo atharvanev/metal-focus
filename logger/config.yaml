@@ -1,0 +1,18 @@
+# Logger defaults. Do not put personal exclusions here: use logger/config.local.yaml (gitignored).
+sample_interval_s: 4
+max_gap_s: 15
+browser_timeout_s: 1.5
+# What to do when a browser can't say whether the window is private (Safari, or Automation denied):
+# drop = store no title/domain (safe default), keep = store them.
+unknown_private_policy: drop
+browsers:
+  com.apple.Safari: safari
+  com.google.Chrome: chromium
+  com.brave.Browser: chromium
+  com.microsoft.edgemac: chromium
+  company.thebrowser.Browser: arc
+exclude:
+  bundle_ids: [com.1password.1password, com.agilebits.onepassword7, com.bitwarden.desktop,
+               com.apple.keychainaccess, com.apple.Passwords, com.lastpass.LastPass, org.keepassxc.keepassxc]
+  domains: [ibm.com]          # suffix match
+  title_patterns: []          # case-insensitive regex; put IBM repo/project names in config.local.yaml

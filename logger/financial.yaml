@@ -1,0 +1,18 @@
+# Built-in financial exclusions. Always applied; there is no switch to turn them off.
+# Extend this list, never shrink it. Over-excluding is fine; under-excluding is not.
+bundle_ids: [com.intuit.QuickBooks, com.quicken.Quicken, com.iggsoftware.banktivity, com.moneymoney-app.retail,
+             com.apple.stocks, com.robinhood.release.Robinhood, com.coinbase.Coinbase, com.paypal.PPClient]
+domains:     # suffix match
+  [chase.com, bankofamerica.com, wellsfargo.com, citi.com, citibank.com, capitalone.com, usbank.com, pnc.com,
+   truist.com, ally.com, discover.com, americanexpress.com, schwab.com, fidelity.com, vanguard.com,
+   etrade.com, robinhood.com, sofi.com, chime.com, venmo.com, paypal.com, cash.app, zelle.com, wise.com,
+   coinbase.com, kraken.com, binance.com, mint.intuit.com, creditkarma.com, turbotax.intuit.com,
+   irs.gov, ssa.gov, experian.com, equifax.com, transunion.com, navyfederal.org, usaa.com,
+   empower.com, betterment.com, wealthfront.com, monarchmoney.com, ynab.com, marcus.com, synchrony.com]
+domain_keywords:   # substring of the domain
+  [bank, creditunion, "fcu.", federalcu, brokerage, invest, wealth, mortgage, loan, "401k", retirement,
+   crypto, wallet, finance, tax]
+title_keywords:    # case-insensitive whole-word regex fragments, matched against the window title
+  [bank, banking, "credit union", "account summary", "checking account", "savings account", brokerage,
+   "routing number", "account number", "wire transfer", "401\\(k\\)", "credit card", statement, balance,
+   venmo, zelle, paypal]
