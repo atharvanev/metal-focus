@@ -113,3 +113,10 @@ def test_locked_skips_window_and_browser():
     s.tick()
     assert "window" not in p.calls and "browser" not in p.calls
     assert sink.samples[0].locked == 1
+
+
+def test_clock_jump_backwards_never_gives_negative_dt():
+    s, sink = make(FakeProbes(), (1000.0, 990.0))
+    s.tick(); s.tick()
+    assert sink.samples[1].dt == 4.0
+    assert sink.events and sink.events[0][1] == "gap"

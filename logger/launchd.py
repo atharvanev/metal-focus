@@ -29,7 +29,9 @@ def render_plist(python: Path, repo: Path, log_dir: Path) -> bytes:
         "ProgramArguments": [str(python), "-m", "logger", "run"],
         "WorkingDirectory": str(repo),
         "RunAtLoad": True,
-        "KeepAlive": {"SuccessfulExit": False},  # restart on crash, not on a deliberate exit (e.g. code 2)
+        # Restart after any non-zero exit (crash, Keychain locked at login, exit 2 = key missing),
+        # throttled to every 30 s; a clean stop (exit 0, e.g. SIGTERM) is not restarted.
+        "KeepAlive": {"SuccessfulExit": False},
         "ThrottleInterval": 30,
         "StandardOutPath": str(log_dir / "logger.out.log"),
         "StandardErrorPath": str(log_dir / "logger.err.log"),

@@ -62,7 +62,7 @@ class Sampler:
         dt = self.cfg.sample_interval_s
         if self._last is not None:
             elapsed = now - self._last
-            if elapsed > self.cfg.max_gap_s:
+            if elapsed > self.cfg.max_gap_s or elapsed <= 0:  # sleep/lid closed, or wall clock moved backwards
                 self.sink.write_event(self._last, "gap", f"{elapsed:.1f}s")
             else:
                 dt = elapsed
