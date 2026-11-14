@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS events (
 );
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 INSERT OR IGNORE INTO meta (key, value) VALUES ('schema_version', '1');
--- Shared with bridge/schema.sql (menubar-app). Keep the two copies identical (agreed 2026-11-13).
+-- Canonical DDL for the tables the Swift app reads/writes (agreed with menubar-app 2026-11-13).
+-- The Swift app opens the DB directly (no Python bridge); announce any change here to that session.
 CREATE TABLE IF NOT EXISTS checkins (
   id INTEGER PRIMARY KEY, asked_at REAL NOT NULL,
   trigger TEXT NOT NULL CHECK (trigger IN ('uncertain','gray_zone','ambiguous_app','random','daily_review')),
