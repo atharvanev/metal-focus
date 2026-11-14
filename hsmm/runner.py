@@ -28,10 +28,16 @@ from datetime import date
 from pathlib import Path
 from typing import Any, Callable, Sequence
 
+import sqlcipher3
+
 from hsmm.live import LiveHSMM
 from hsmm.params import HSMMParams
 
 COLD_START_PARAMS = Path(__file__).with_name("cold_start_params.json")
+
+# The real DB is a sqlcipher3 connection, whose exceptions do NOT inherit from
+# sqlite3.Error; catch both (plain sqlite3 is used in tests).
+DB_ERRORS: tuple[type[BaseException], ...] = (sqlite3.Error, sqlcipher3.Error)
 MODEL_NAME = "hsmm"
 
 SCHEMA = """
@@ -154,7 +160,7 @@ def main(argv: list[str] | None = None) -> None:
         except cant_run as e:
             print(f"hsmm.runner: can't run yet ({type(e).__name__}: {e}); retrying", flush=True)
             runner = None
-        except sqlite3.Error as e:  # connection went bad: reopen next tick
+        except DB_ERRORS as e:  # connection went bad (locked, I/O): reopen next tick
             print(f"hsmm.runner: database error ({e}); reconnecting", flush=True)
             if conn is not None:
                 try:

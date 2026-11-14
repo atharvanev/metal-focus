@@ -148,3 +148,51 @@ def test_main_retries_on_cant_run_errors(monkeypatch):
     with pytest.raises(Stop):
         runner_mod.main(["--interval", "0"])
     assert fake.failures == []  # survived all three errors, then connected and ran
+
+
+def test_main_reconnects_on_sqlcipher_error(monkeypatch):
+    """sqlcipher3 errors don't subclass sqlite3.Error; the reconnect path must still run."""
+    import sys
+    import types
+
+    import sqlcipher3
+
+    import hsmm.runner as runner_mod
+
+    opens = {"n": 0}
+
+    def open_existing(db_path=None, store=None):
+        opens["n"] += 1
+        return sqlite3.connect(":memory:")
+
+    calls = {"n": 0}
+
+    def load_day(conn, day):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise sqlcipher3.OperationalError("database is locked")
+        return _day(2)
+
+    db_mod = types.ModuleType("data.db")
+    db_mod.open_existing = open_existing
+    win_mod = types.ModuleType("data.windows")
+    win_mod.load_day = load_day
+    monkeypatch.setitem(sys.modules, "data", types.ModuleType("data"))
+    monkeypatch.setitem(sys.modules, "data.db", db_mod)
+    monkeypatch.setitem(sys.modules, "data.windows", win_mod)
+
+    class Stop(Exception):
+        pass
+
+    ticks = {"n": 0}
+
+    def fake_sleep(_):
+        ticks["n"] += 1
+        if ticks["n"] >= 3:
+            raise Stop
+
+    monkeypatch.setattr(runner_mod.time, "sleep", fake_sleep)
+    with pytest.raises(Stop):
+        runner_mod.main(["--interval", "0"])
+    assert opens["n"] == 2  # reopened after the locked error
+    assert calls["n"] >= 2  # and kept ticking
