@@ -3,7 +3,7 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Repo status
-As of 2026-11-13 the v1 activity logger (`logger/`, `data/db.py`) is built; windowing, labels, check-ins, nudges and evaluation are not (HSMM lives on the `hsmm-mlx` branch, the Swift menu bar app on `menubar-app`). The spec below is the source of truth; the "Suggested repo layout" and "First task" sections describe what to scaffold.
+As of 2026-11-13 `main` has the v1 activity logger (`logger/`, `data/db.py`), the HSMM in MLX with its live runner (`hsmm/`, GRU stub in `models_later/gru/`), and the menu bar app design (`docs/superpowers/specs/2026-11-13-menubar-app-design.md`; no Swift code yet). Not built yet: windowing (`data/windows.py`), the categorizer, labels/check-ins, nudges, evaluation. The spec below is the source of truth; the "Suggested repo layout" and "First task" sections describe what to scaffold.
 
 ## Environment and commands (uv only)
 Python is managed **only by uv**: a uv-managed CPython 3.13 is pinned in `.python-version`, and `pyproject.toml` sets `python-preference = "only-managed"`. Never use pip, conda, brew Python or system Python for this repo. The project is not an installable package (`package = false`); top-level dirs are imported from the repo root (pytest `pythonpath = ["."]`).
@@ -14,7 +14,7 @@ Python is managed **only by uv**: a uv-managed CPython 3.13 is pinned in `.pytho
 - One test: `uv run pytest tests/path/test_file.py::test_name -v`
 - Skip tests that hit real macOS APIs/permissions: `uv run pytest -m "not macos"`
 - macOS permissions (Accessibility, Input Monitoring, Automation) attach to the launching binary. For this repo that is the uv-managed interpreter under `~/.local/share/uv/python/`, or the terminal/IDE that launches it.
-- MLX is not a dependency yet; add it with `uv add mlx` when the HSMM work starts.
+- MLX (`mlx>=0.32.4`) is a dependency; device selection lives in `common/device.py`.
 
 ## Logger (v1)
 - `uv run python -m logger check`: list the permissions (Accessibility, Automation per running browser) and prompt for Accessibility.
