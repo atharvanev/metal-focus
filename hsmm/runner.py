@@ -6,9 +6,12 @@ Each tick loads today's completed windows (data.windows.load_day), steps the
 LiveHSMM over the ones not seen yet, and writes one row per window to the
 `readouts` table. The menu bar bridge reads the latest row; nudge/ can read
 the same rows. A new local day resets the model (each day is one sequence,
-matching training). After a process restart the day is replayed from its first
-window, so the belief is identical to a continuous run; rows already written
-are left as they are.
+matching training). After a process restart, or when windowing rebuilds a day
+(e.g. a categorizer rule change), the day is replayed from its first window and
+its rows are rewritten, so the belief is identical to a continuous run.
+
+The DB is opened with data.db.open_existing(), which never creates a DB or key.
+A missing DB, missing key, or wrong key means "can't run yet": retry later.
 
 Params: the nightly-trained file if it exists, else hsmm/cold_start_params.json
 (hand-set prior). A changed params file is picked up at the next day rollover.
@@ -65,25 +68,26 @@ class LiveRunner:
         params, self.params_used = load_params(params_path)
         self.model = LiveHSMM(params, cfg)
         self.day: str | None = None
-        self.seen = 0  # windows of self.day already stepped
+        self.seen: list[tuple] = []  # fingerprints of windows of self.day already stepped
         ensure_schema(conn)
 
     def _start_day(self, day: str) -> None:
         params, self.params_used = load_params(self.params_path)
         self.model.set_params(params)
         self.model.reset()
-        self.day, self.seen = day, 0
+        self.day, self.seen = day, []
 
     def tick(self, day: str | None = None) -> list[dict]:
         """Process new windows of `day` (default: today, local). Returns new rows written."""
         day = day or date.today().isoformat()
         if day != self.day:
             self._start_day(day)
-        windows = self.load_day(self.conn, day)
-        if len(windows) < self.seen:  # windowing rewrote the day: replay from scratch
+        windows = list(self.load_day(self.conn, day))
+        prints = [_fingerprint(w) for w in windows]
+        if prints[: len(self.seen)] != self.seen:  # windowing rebuilt the day: replay
             self._start_day(day)
         rows = []
-        for w in windows[self.seen :]:
+        for w in windows[len(self.seen) :]:
             r = self.model.step(w)
             rows.append(
                 {
@@ -95,15 +99,25 @@ class LiveRunner:
                     "readout": json.dumps(asdict(r)),
                 }
             )
-        self.seen = len(windows)
+        self.seen = prints
         if rows:
             self.conn.executemany(
-                "INSERT OR IGNORE INTO readouts (window_start, model, day, written_at, params, readout) "
+                "INSERT OR REPLACE INTO readouts (window_start, model, day, written_at, params, readout) "
                 "VALUES (:window_start, :model, :day, :written_at, :params, :readout)",
                 rows,
             )
             self.conn.commit()
         return rows
+
+
+def _fingerprint(w: Any) -> tuple:
+    """Everything the HSMM reads from a window; a change means the day was rebuilt."""
+    return (
+        float(w.window_start),
+        getattr(w, "category", None),
+        getattr(w, "switch_count", None),
+        bool(getattr(w, "is_away", False)),
+    )
 
 
 def latest_readout(conn, model: str = MODEL_NAME) -> dict | None:
@@ -124,13 +138,30 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--interval", type=float, default=30.0, help="seconds between ticks")
     args = ap.parse_args(argv)
 
-    from data.db import connect  # type: ignore[import-not-found]  # logger branch
+    import data.db as db  # type: ignore[import-not-found]  # logger branch
     from data.windows import load_day  # type: ignore[import-not-found]
 
-    conn = connect()
-    runner = LiveRunner(conn, load_day, args.params)
+    cant_run = tuple(
+        e for e in (FileNotFoundError, getattr(db, "KeyMissingError", None), getattr(db, "WrongKeyError", None)) if e
+    )
+    runner, conn = None, None
     while True:
-        runner.tick()
+        try:
+            if runner is None:
+                conn = db.open_existing()  # never creates a DB or key
+                runner = LiveRunner(conn, load_day, args.params)
+            runner.tick()
+        except cant_run as e:
+            print(f"hsmm.runner: can't run yet ({type(e).__name__}: {e}); retrying", flush=True)
+            runner = None
+        except sqlite3.Error as e:  # connection went bad: reopen next tick
+            print(f"hsmm.runner: database error ({e}); reconnecting", flush=True)
+            if conn is not None:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+            runner, conn = None, None
         time.sleep(args.interval)
 
 

@@ -80,3 +80,71 @@ def test_away_rows_are_flagged(conn):
     rows = LiveRunner(conn, store.load_day).tick("d")
     assert json.loads(rows[-1]["readout"])["away"] is True
     assert json.loads(rows[-2]["readout"])["away"] is False
+
+
+def test_rebuilt_day_with_same_length_is_replayed_and_rows_rewritten(conn):
+    store = FakeStore()
+    store.days["d"] = _day(6)
+    r = LiveRunner(conn, store.load_day)
+    r.tick("d")
+    # categorizer rule change: window 2 recategorized, same number of windows
+    rebuilt = _day(6)
+    rebuilt[2] = W(rebuilt[2].window_start, "Video", 0)
+    store.days["d"] = rebuilt
+    rows = r.tick("d")
+    assert len(rows) == 6  # whole day replayed
+    fresh = LiveRunner(sqlite3.connect(":memory:"), store.load_day).tick("d")
+    assert rows[-1]["readout"] == fresh[-1]["readout"]
+    assert conn.execute("SELECT COUNT(*) FROM readouts").fetchone()[0] == 6
+    stored = latest_readout(conn)
+    assert stored["p_state"] == pytest.approx(json.loads(fresh[-1]["readout"])["p_state"])
+
+
+class _FakeDB:
+    class KeyMissingError(Exception):
+        pass
+
+    class WrongKeyError(Exception):
+        pass
+
+    def __init__(self, failures):
+        self.failures = list(failures)
+
+    def open_existing(self, db_path=None, store=None):
+        if self.failures:
+            raise self.failures.pop(0)
+        return sqlite3.connect(":memory:")
+
+
+def test_main_retries_on_cant_run_errors(monkeypatch):
+    import sys
+    import types
+
+    import hsmm.runner as runner_mod
+
+    fake = _FakeDB([])
+    fake.failures = [FileNotFoundError("no db"), fake.KeyMissingError("no key"), fake.WrongKeyError("bad key")]
+    data_pkg = types.ModuleType("data")
+    db_mod = types.ModuleType("data.db")
+    db_mod.open_existing = fake.open_existing
+    db_mod.KeyMissingError, db_mod.WrongKeyError = fake.KeyMissingError, fake.WrongKeyError
+    win_mod = types.ModuleType("data.windows")
+    win_mod.load_day = lambda conn, day: _day(3)
+    monkeypatch.setitem(sys.modules, "data", data_pkg)
+    monkeypatch.setitem(sys.modules, "data.db", db_mod)
+    monkeypatch.setitem(sys.modules, "data.windows", win_mod)
+
+    ticks = {"n": 0}
+
+    class Stop(Exception):
+        pass
+
+    def fake_sleep(_):
+        ticks["n"] += 1
+        if ticks["n"] >= 5:
+            raise Stop
+
+    monkeypatch.setattr(runner_mod.time, "sleep", fake_sleep)
+    with pytest.raises(Stop):
+        runner_mod.main(["--interval", "0"])
+    assert fake.failures == []  # survived all three errors, then connected and ran
