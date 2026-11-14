@@ -159,6 +159,7 @@ readouts(window_start REAL, model TEXT, day TEXT, written_at REAL, params TEXT, 
 - `bridge/server.py`: request dispatch, an outbox poll thread, and stdout writes behind one lock. Unknown method → error response. Malformed line → error response with `id: null`, keep running.
 - `bridge/store.py`: the only module that touches SQL.
   - `open_store()` calls `data.db.open_existing()` (logger branch, be82def). It never creates a DB or key and raises `FileNotFoundError` / `KeyMissingError` / `WrongKeyError`, which `status` reports as `no_db` / `key_missing` / `wrong_key`. It then applies `bridge/schema.sql`.
+  - DB errors from the real store are `sqlcipher3.Error`, which does **not** inherit from `sqlite3.Error`. Tests use plain `sqlite3`, so `store.py` exposes one `DB_ERRORS` tuple (`sqlcipher3.Error`, `sqlite3.Error`). Every read and write is guarded by it, and failures come back as error responses, never as a crashed bridge.
   - Tests inject a plain `sqlite3` connection with the logger schema loaded.
 - Tests (`tests/bridge/`): protocol round-trips, outbox delivery and ack, check-in response writes (latency, dismissed is not a label), excluded samples redacted in output, never-create-key behaviour, malformed input survival.
 
