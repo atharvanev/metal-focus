@@ -1,13 +1,15 @@
 """Hindsight auto-labeler (rules, not ML): a day's windows -> one state label (or None) per window.
 
-Distraction session: contiguous non-work, non-Away windows, allowing work blips of <= GAP_OK windows.
-A session is labeled only if it contains at least one distraction window (Chat/Video/Social); sessions
-made only of neutral windows (Other/Excluded) stay unlabeled.
-- returned to work, <= BREAK_MAX windows, < HOPS_MIN sites  -> Short break
+Distraction session: starts at a distraction window (Chat/Video/Social) and extends over distraction
+windows. A run of <= GAP_OK non-distraction, non-Away windows (work, Other or Excluded) between two
+distraction windows is a blip and stays inside the session. Away, or a longer non-distraction run,
+ends the session. Other/Excluded never extend a session on their own: an hour of Excluded
+(e.g. confidential work) after a distraction must never become a rabbit hole.
+- ended by a return to work, <= BREAK_MAX windows -> Short break
 - >= RABBIT_MIN windows or >= HOPS_MIN distinct distraction sites (any ending) -> Drifting (first
   ~1/3, max DRIFT_MAX) then Rabbit hole
-- anything else (gray zone, or cut off by Away / end of data before qualifying) -> None
-Work windows outside sessions -> Working. Away windows -> Away (they also end a session).
+- anything else (gray zone, or ended by Away / Other / Excluded / end of data first) -> None
+Work windows outside sessions -> Working; Away -> Away; Other/Excluded outside sessions -> None.
 """
 
 from __future__ import annotations
@@ -26,16 +28,22 @@ def drift_split(n: int, cfg: LabelsConfig) -> list[str]:
     return [DRIFTING] * min(n_drift, n) + [RABBIT_HOLE] * max(0, n - n_drift)
 
 
+def window_kinds(windows: Sequence[Window], cfg: LabelsConfig) -> list[str]:
+    """A = Away, W = work, D = distraction, N = neutral (Other/Excluded/anything else)."""
+    return ["A" if w.is_away else "W" if w.category in cfg.work_categories
+            else "D" if w.category in cfg.distraction_categories else "N" for w in windows]
+
+
 def auto_label(windows: Sequence[Window], cfg: LabelsConfig) -> list[str | None]:
     n = len(windows)
-    kind = ["A" if w.is_away else "W" if w.category in cfg.work_categories else "D" for w in windows]
+    kind = window_kinds(windows, cfg)
     labels: list[str | None] = [AWAY if k == "A" else WORKING if k == "W" else None for k in kind]
     t = 0
     while t < n:
         if kind[t] != "D":
             t += 1
             continue
-        start, end = t, t  # session covers start..end inclusive
+        start = end = t  # session covers start..end inclusive
         u = t + 1
         ending = "cutoff"
         while u < n:
@@ -45,24 +53,21 @@ def auto_label(windows: Sequence[Window], cfg: LabelsConfig) -> list[str | None]
             elif kind[u] == "A":
                 ending = "away"
                 break
-            else:  # work run: a blip if short and followed by more non-work
+            else:  # run of work/neutral windows: a blip if short and followed by more distraction
                 v = u
-                while v < n and kind[v] == "W":
+                while v < n and kind[v] in "WN":
                     v += 1
                 if v - u <= cfg.GAP_OK and v < n and kind[v] == "D":
                     end = v
                     u = v + 1
-                else:  # back at work (even if the day or the logging ends right after)
-                    ending = "returned"
+                else:
+                    ending = "returned" if kind[u] == "W" else "neutral"
                     break
         span = windows[start : end + 1]
-        distracting = [w for w in span if w.category in cfg.distraction_categories]
-        hops = len({w.dominant for w in distracting if w.dominant})
+        hops = len({w.dominant for w in span if w.category in cfg.distraction_categories and w.dominant})
         length = end - start + 1
-        if not distracting:
-            session = [None] * length
-        elif length >= cfg.RABBIT_MIN or hops >= cfg.HOPS_MIN:
-            session = drift_split(length, cfg)
+        if length >= cfg.RABBIT_MIN or hops >= cfg.HOPS_MIN:
+            session: list[str | None] = drift_split(length, cfg)
         elif ending == "returned" and length <= cfg.BREAK_MAX:
             session = [SHORT_BREAK] * length
         else:
