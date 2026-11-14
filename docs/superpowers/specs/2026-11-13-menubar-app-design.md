@@ -110,7 +110,14 @@ Events (no `id`): `show_checkin {outbox_id, checkin_id, question, expires_at}`, 
 - Once `labels/merge.py` exists: final labels + `source`.
 - The bridge picks whichever is available via guarded imports. Swift renders a list of segments either way and does not know which stage it is.
 
-`readout`: the bridge returns the last row of a `readouts` table (`asdict(Readout)` + `ts`) if it exists, else null. The UI then shows "model not running". **Open, unowned:** the live runner (the loop calling `LiveHSMM.step()` on each new window and writing that row). It is not in this project's scope. hsmm-mlx will share the table schema before writing it. The fields are `dataclasses.asdict(Readout)` from `common.model_api`:
+`readout`: the source is the `readouts` table, owned and created by `hsmm/runner.py` on hsmm-mlx (`uv run python -m hsmm.runner`, its own process):
+```
+readouts(window_start REAL, model TEXT, day TEXT, written_at REAL, params TEXT, readout TEXT,
+         PRIMARY KEY(window_start, model))
+```
+- The bridge runs `SELECT window_start, day, written_at, readout FROM readouts WHERE model='hsmm' ORDER BY window_start DESC LIMIT 1` and decodes `readout` (the JSON of `asdict(Readout)`). It uses plain SQL, not an import of `hsmm`, to keep cross-branch imports to `data.db` only. *(My call.)*
+- The result is null, and the UI shows "model not running", when the table is missing, empty, or `written_at` is older than 5 min.
+- The bridge and app never start the runner. Like the logger, it runs on its own. *(My call.)* The fields are `dataclasses.asdict(Readout)` from `common.model_api`:
 - `risk` is the only guaranteed field; every other field may be null (e.g. for the later GRU).
 - `p_state` order is [Working, Short break, Drifting, Rabbit hole].
 - `minutes_in_state` applies to the top state only.
