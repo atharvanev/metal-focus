@@ -123,3 +123,88 @@ class Store:
         if row is None or row[2] is None or self.now() - row[2] > max_age_s:
             return None
         return {"window_start": row[0], "day": row[1], "written_at": row[2], **json.loads(row[3])}
+
+    # -- outbox + responses ------------------------------------------------
+    def pending_outbox(self) -> list[dict]:
+        rows = self.conn.execute(
+            "SELECT id, kind, ref_id, expires_at, payload_json FROM notify_outbox "
+            "WHERE delivered_at IS NULL AND expires_at > ? ORDER BY created_at, id",
+            (self.now(),),
+        ).fetchall()
+        return [
+            {"outbox_id": i, "kind": k, "ref_id": ref, "expires_at": exp, "payload": json.loads(pj or "{}")}
+            for i, k, ref, exp, pj in rows
+        ]
+
+    def ack_delivered(self, outbox_id: int) -> bool:
+        """Mark shown; the referenced label row's asked_at becomes the shown time."""
+        now = self.now()
+        with self.conn:
+            row = self.conn.execute("SELECT kind, ref_id FROM notify_outbox WHERE id = ?", (outbox_id,)).fetchone()
+            if row is None:
+                return False
+            kind, ref = row
+            self.conn.execute("UPDATE notify_outbox SET delivered_at = ? WHERE id = ?", (now, outbox_id))
+            if ref is not None:
+                self.conn.execute(f"UPDATE {_TABLE[kind]} SET asked_at = ? WHERE id = ?", (now, ref))
+        return True
+
+    def checkin_response(self, checkin_id: int, response: str, responded_at: float) -> bool:
+        if response not in CHECKIN_RESPONSES:
+            raise ValueError(f"invalid check-in response {response!r}")
+        with self.conn:
+            cur = self.conn.execute(
+                "UPDATE checkins SET response = ?, responded_at = ? WHERE id = ? AND response IS NULL",
+                (response, responded_at, checkin_id),
+            )
+        return cur.rowcount == 1
+
+    def nudge_response(self, nudge_row_id: int, response: str, responded_at: float) -> bool:
+        if response not in NUDGE_RESPONSES:
+            raise ValueError(f"invalid nudge response {response!r}")
+        with self.conn:
+            cur = self.conn.execute(
+                "UPDATE nudge_responses SET response = ?, responded_at = ?, response_latency_s = ? - asked_at "
+                "WHERE id = ? AND response IS NULL",
+                (response, responded_at, responded_at, nudge_row_id),
+            )
+        return cur.rowcount == 1
+
+    def sweep_expired(self, grace_s: float = 30) -> int:
+        """Shown-but-unanswered prompts past expires_at + grace become 'dismissed' (responded_at = expires_at)."""
+        cutoff = self.now() - grace_s
+        n = 0
+        with self.conn:
+            for kind, table in _TABLE.items():
+                cur = self.conn.execute(
+                    f"UPDATE {table} SET response = 'dismissed', "
+                    f"responded_at = (SELECT o.expires_at FROM notify_outbox o "
+                    f"  WHERE o.kind = ? AND o.ref_id = {table}.id AND o.delivered_at IS NOT NULL "
+                    f"  AND o.expires_at < ? ORDER BY o.expires_at DESC LIMIT 1) "
+                    f"WHERE response IS NULL AND id IN (SELECT ref_id FROM notify_outbox "
+                    f"  WHERE kind = ? AND ref_id IS NOT NULL AND delivered_at IS NOT NULL AND expires_at < ?)",
+                    (kind, cutoff, kind, cutoff),
+                )
+                n += cur.rowcount
+        return n
+
+    def insert_test_prompt(self, kind: str, ttl_s: float = 60) -> int:
+        if kind not in _TABLE:
+            raise ValueError(kind)
+        payload = {"test": True}
+        payload["question" if kind == "checkin" else "body"] = (
+            DEFAULT_QUESTION if kind == "checkin" else "Test nudge: this looks like a rabbit hole. Head back?"
+        )
+        now = self.now()
+        with self.conn:
+            cur = self.conn.execute(
+                "INSERT INTO notify_outbox (created_at, kind, ref_id, payload_json, expires_at) VALUES (?, ?, NULL, ?, ?)",
+                (now, kind, json.dumps(payload), now + ttl_s),
+            )
+        return cur.lastrowid
+
+
+DEFAULT_QUESTION = "What were you doing the last 10 min?"
+CHECKIN_RESPONSES = frozenset({"Working", "Short break", "Drifting", "Rabbit hole", "Away", "skip", "dismissed"})
+NUDGE_RESPONSES = frozenset({"back_to_work", "on_break", "snooze", "dismissed"})
+_TABLE = {"checkin": "checkins", "nudge": "nudge_responses"}
