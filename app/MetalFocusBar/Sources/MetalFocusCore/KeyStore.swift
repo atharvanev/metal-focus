@@ -19,7 +19,7 @@ public enum DBError: Error, Equatable, CustomStringConvertible {
     }
 }
 
-/// Generic password shared with Python's `keyring` (service "metal-focus", account "sqlcipher-key").
+/// Generic password shared with the repo's `keyring`-based readers (service "metal-focus", account "sqlcipher-key").
 public struct KeychainKeyStore: KeyStore {
     public static let service = "metal-focus", account = "sqlcipher-key"
     public init() {}

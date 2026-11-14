@@ -224,7 +224,7 @@ Removed: `bridge/`, `tests/bridge/`.
     - `security add-trusted-cert -r trustRoot -p codeSign -k ~/Library/Keychains/login.keychain-db <cert.pem>` (password prompt).
   - `app/build-app.sh [--install]`:
     - `swift build -c release --disable-keychain --package-path app/MetalFocusBar`;
-    - assemble the `.app`, render the plist (`CFBundleIdentifier`, `CFBundleName "Metal Focus"`, `CFBundleExecutable MetalFocusBar`, `CFBundlePackageType APPL`, `LSUIElement`, `LSMinimumSystemVersion 14.0`, `MFRepoPath`, `CFBundleShortVersionString 0.1.0`, `NSAppleEventsUsageDescription "Reads the current tab's domain and private-window state of the frontmost browser."`);
+    - assemble the `.app`, render the plist (`CFBundleIdentifier`, `CFBundleName "Metal Focus"`, `CFBundleExecutable MetalFocusBar`, `CFBundlePackageType APPL`, `LSUIElement`, `LSMinimumSystemVersion 14.0`, `CFBundleShortVersionString 0.1.0`, `NSAppleEventsUsageDescription "Reads the current tab's domain and private-window state of the frontmost browser."`); copy `logger/{config,financial,config.local}.yaml` and `data/schema.sql` into `Contents/Resources/repo/` (the app reads no repo files at runtime);
     - `codesign --force --timestamp=none -s "Metal Focus Dev"`;
     - `--install` → `ditto` to `~/Applications/MetalFocusBar.app`.
 - [ ] **Step 6: Manual check** (results go in the commit body):

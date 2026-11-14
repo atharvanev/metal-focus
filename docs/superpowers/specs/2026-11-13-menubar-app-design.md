@@ -33,7 +33,7 @@ Python stays the brain for decisions: check-in triggers and budget (`labels/`), 
     - `app_switches` = NSWorkspace activations since the previous tick.
   - **URL sanitizing:** http/https only, lowercased host, no port or userinfo, one leading `www.` stripped.
   - **Matching:** domain suffix match is exact or on a dot boundary. Domain keywords are plain substrings. Financial title keywords become `(?<!\w)(?:frag)(?!\w)`, case-insensitive. User `title_patterns` are case-insensitive regexes.
-  - **Config:** `logger/config.yaml` + `logger/financial.yaml` (always appended; it can't be disabled) + optional `logger/config.local.yaml` (lists append, scalars override). These are parsed **at runtime** from the repo, the single source of truth. Validation matches Python.
+  - **Config:** `logger/config.yaml` + `logger/financial.yaml` (always appended; it can't be disabled) + optional `logger/config.local.yaml` (lists append, scalars override). The repo is the single source of truth; `app/build-app.sh` copies these files into the bundle (`Contents/Resources/repo/`) and the app parses that copy at runtime, so it never needs access to `~/Documents`. Rebuild after editing them. Validation matches Python.
   - **Timeouts:** AX messaging 0.5 s, browser query (osascript) 1.5 s.
   - **Parity proof:** the Swift builder reproduces every case in `tests/fixtures/sample_cases.json`, which is generated from the Python `build_sample` and kept in sync by a Python test.
 - **Events:** `logger_start`/`logger_stop` (app start/quit), `sleep`, `wake`, `screens_sleep`, `screens_wake`, `lock`, `unlock`, `gap`, and `permission_missing` (once per launch when Accessibility is not granted, detail `accessibility`).
@@ -88,7 +88,7 @@ notify_outbox + checkins/nudge_responses; read via data.db.open_existing.
 - **Path:** `~/Library/Application Support/metal-focus/activity.db` (dir 0700; file and `-wal`/`-shm` 0600). The `MFHome` user default overrides the dir (the Swift equivalent of `METAL_FOCUS_HOME`).
 - **Cipher:** SQLCipher 4 community defaults. The first statement is `PRAGMA key = "x'<64 lowercase hex>'"`, then `SELECT count(*) FROM sqlite_master` (failure → wrong key), then `PRAGMA journal_mode=WAL`.
 - **Keychain:** a generic password with service `metal-focus`, account `sqlcipher-key`, and the 64 hex chars as its value. It's created via `SecItemAdd` only under the anti-goal rule. Python's `keyring` reads the same item.
-- **Schema:** the app executes the repo's `data/schema.sql` (all `IF NOT EXISTS`) on open, read at runtime from `MFRepoPath`, so the schema has one source. It includes `checkins`, `notify_outbox` and `nudge_responses`.
+- **Schema:** the app executes the repo's `data/schema.sql` (all `IF NOT EXISTS`) on open, copied into the bundle at build time like the config, so the schema has one source. It includes `checkins`, `notify_outbox` and `nudge_responses`.
 - **Writes:** short transactions. Python processes share the WAL file concurrently.
 
 ### Prompts: the outbox contract (agreed with metal-focus-d1 and metal-focus-fd)
@@ -124,7 +124,7 @@ Window and label-based segments come later and are not in scope.
 - **Login:** `SMAppService.mainApp` is registered **on first launch** (my call: it is now the data logger, so collection should survive reboots). There's a toggle in the popover.
 - **Signing:**
   - `app/make-cert.sh` creates the self-signed code-signing identity "Metal Focus Dev" in the login keychain (openssl → p12 → `security import`, then `security add-trusted-cert -p codeSign`, which prompts once for the user's password). It is idempotent.
-  - `app/build-app.sh` builds release, assembles `app/build/MetalFocusBar.app` (Info.plist: `CFBundleIdentifier com.metalfocus.menubar`, `LSUIElement`, `MFRepoPath`), and runs `codesign --force -s "Metal Focus Dev"`. If the identity is missing, it fails with a hint. `--install` copies the app to `~/Applications`.
+  - `app/build-app.sh` builds release, assembles `app/build/MetalFocusBar.app` (Info.plist: `CFBundleIdentifier com.metalfocus.menubar`, `LSUIElement`; config and schema copied to `Contents/Resources/repo/`), and runs `codesign --force -s "Metal Focus Dev"`. If the identity is missing, it fails with a hint. `--install` copies the app to `~/Applications`.
   - TCC grants then stick across rebuilds.
 
 ## Python side
