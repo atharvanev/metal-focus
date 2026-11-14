@@ -7,3 +7,4 @@ __pycache__/
 *.db-shm
 .DS_Store
 logger/config.local.yaml
+labels/categories.local.yaml

@@ -3,7 +3,7 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Repo status
-As of 2026-11-13 `main` has the v1 activity logger (`logger/`, `data/db.py`), the HSMM in MLX with its live runner (`hsmm/`, GRU stub in `models_later/gru/`), and the menu bar app design (`docs/superpowers/specs/2026-11-13-menubar-app-design.md`; no Swift code yet). Not built yet: windowing (`data/windows.py`), the categorizer, labels/check-ins, nudges, evaluation. The spec below is the source of truth; the "Suggested repo layout" and "First task" sections describe what to scaffold.
+As of 2026-11-13 `main` has: the Python activity logger (`logger/`, `data/db.py`; now the reference implementation and test oracle), windowing (`data/windows.py`), the rules categorizer, auto-labeler, label merge and check-in scheduler (`labels/`), and the HSMM in MLX with its live runner (`hsmm/`, GRU stub in `models_later/gru/`). Sampling is moving into the signed Swift menu bar app (`app/`, `bridge/`), which writes the same `samples` table. Not built yet: nudges, the rules/HMM baselines, threshold tuning, evaluation.
 
 ## Environment and commands (uv only)
 Python is managed **only by uv**: a uv-managed CPython 3.13 is pinned in `.python-version`, and `pyproject.toml` sets `python-preference = "only-managed"`. Never use pip, conda, brew Python or system Python for this repo. The project is not an installable package (`package = false`); top-level dirs are imported from the repo root (pytest `pythonpath = ["."]`).
@@ -16,12 +16,19 @@ Python is managed **only by uv**: a uv-managed CPython 3.13 is pinned in `.pytho
 - macOS permissions (Accessibility, Input Monitoring, Automation) attach to the launching binary. For this repo that is the uv-managed interpreter under `~/.local/share/uv/python/`, or the terminal/IDE that launches it.
 - MLX (`mlx>=0.32.4`) is a dependency; device selection lives in `common/device.py`.
 
-## Logger (v1)
-- `uv run python -m logger check`: list the permissions (Accessibility, Automation per running browser) and prompt for Accessibility.
-- `uv run python -m logger run`: run in the foreground (Ctrl-C to stop). `... status`: sample count, last sample, recent events.
-- `uv run python -m logger install` / `uninstall`: LaunchAgent `com.metalfocus.logger`. Its permissions belong to the uv-managed interpreter behind `.venv/bin/python`, so grant them again after the first install.
-- Data: `~/Library/Application Support/metal-focus/activity.db` (SQLCipher; override the dir with `METAL_FOCUS_HOME`). The key lives in Keychain (service `metal-focus`, account `sqlcipher-key`). If the DB exists but the key is gone, the logger refuses to start rather than mint a new key. Readers (bridge, HSMM runner) use `data.db.open_existing()`, which never creates a key.
+## Logger (v1, Python reference implementation)
+- **Permission policy (user, 2026-11-13):** macOS permissions (Accessibility etc.) belong only to the signed Swift app, never to Python. Do **not** recommend `python -m logger install`; the LaunchAgent was removed. The Python logger stays as the reference implementation of the sampling contract and as a test oracle.
+- **Contract the Swift sampler follows:** `data/schema.sql` (`samples`, `events`, plus the shared `checkins`, `nudge_responses`, `notify_outbox`), `logger/config.yaml` and `logger/financial.yaml` (exclusions), and the privacy semantics in `logger/sample.py:build_sample`. Announce any schema change to the app session first.
+- `uv run python -m logger status`: sample count, last sample, recent events (read-only; never creates a key).
+- Data: `~/Library/Application Support/metal-focus/activity.db` (SQLCipher; override the dir with `METAL_FOCUS_HOME`). The key lives in Keychain (service `metal-focus`, account `sqlcipher-key`). If the DB exists but the key is gone, writers refuse to mint a new key; readers use `data.db.open_existing()`, which never creates a DB or key.
 - **Privacy, set by the user (2026-11-13):** no keyboard or mouse hooks of any kind (no event taps, no global monitors, no Input Monitoring permission). Typing/click/scroll come only from macOS's "seconds since last event" timers, stored as 0/1 per-sample flags; `tests/logger/test_cli.py::test_no_input_hooks_in_source` guards this. Financial sites and apps are excluded automatically via `logger/financial.yaml` (always on). Extra exclusions and IBM repo title patterns go in `logger/config.local.yaml` (gitignored). Private/incognito windows store no title or domain; Safari can't report private windows, so Safari titles and domains are dropped unless `unknown_private_policy: keep`.
+
+## Windowing and labels
+- `data.windows.load_day(conn, day)`: completed 2-min windows for a local day, computed from `samples` (no windows table). Fields are a contract with `hsmm/io.py`; announce renames.
+- `labels/categories.yaml`: app/site -> category rules (+ low-confidence flags); personal additions in `labels/categories.local.yaml` (gitignored).
+- `labels/config.yaml`: auto-labeler thresholds and check-in scheduler settings (never hard-code them).
+- `labels.merge.load_training_labels(conn, day)`: per-window (state, source), check-in > nudge > auto, eval check-ins excluded. `labels.checkins.load_eval(conn, start, end)`: the eval set.
+- `uv run python -m labels.checkins run`: check-in scheduler loop (writes `checkins` + `notify_outbox`; the bridge shows prompts).
 
 ## Framework decision: MLX everywhere
 All model code (HSMM now, GRU/hybrid later) is written in **MLX** so the GRU port is the same framework, with shared array code, no NumPy/MLX conversion at the boundary, and one set of tests/utilities.
