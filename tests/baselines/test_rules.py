@@ -68,3 +68,8 @@ def test_reset():
         m.step(w)
     m.reset()
     assert m.step(wins("D")[0]).risk < 0.5
+
+
+def test_long_neutral_stretch_ends_live_session():
+    r = run("WDDD" + "N" * 30)
+    assert r[-1].risk == 0.0 and max(x.risk for x in r) < 0.5

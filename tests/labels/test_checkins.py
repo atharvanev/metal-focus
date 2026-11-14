@@ -8,8 +8,8 @@ from labels.checkins import CheckinRequest, Context, decide, load_checkin_config
 DAY_START = 1_794_528_000.0  # 2026-11-13 00:00 UTC (tz 0 in these tests)
 NOON = DAY_START + 12 * 3600
 CFG = load_checkin_config()
-SITE = {"W": None, "D": "reddit.com", "Y": "youtube.com", "A": None}
-CAT = {"W": "Coding", "D": "Social", "Y": "Video", "A": "Other"}
+SITE = {"W": None, "D": "reddit.com", "Y": "youtube.com", "A": None, "N": None}
+CAT = {"W": "Coding", "D": "Social", "Y": "Video", "A": "Other", "N": "Other"}
 
 
 def wins(pattern, end=NOON, typing=0.5):
@@ -149,3 +149,7 @@ def test_away_readouts_are_ignored_for_uncertainty():
 
 def test_gray_zone_needs_more_than_ten_minutes():
     assert decide(ctx("WW" + "D" * 5), CFG) is None
+
+
+def test_gray_zone_ignores_excluded_stretch():
+    assert decide(ctx("WD" + "N" * 6 + "D"), CFG) is None  # one window of distraction, not a 16-min session

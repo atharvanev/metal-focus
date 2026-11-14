@@ -1,7 +1,8 @@
 """Rules baseline: the auto-labeler's rules run live (past-only), as a common.model_api.LiveModel.
 
-Per window it tracks the open distraction session (same definition as labels/autolabel.py: non-work,
-non-Away windows, work blips of <= GAP_OK windows allowed) and reports:
+Per window it tracks the open distraction session (same definition as labels/autolabel.py: starts and
+extends only on distraction windows; <= GAP_OK work/Other/Excluded windows in between are a blip;
+Away or a longer non-distraction run ends it) and reports:
 - risk = max(L / RABBIT_MIN, (H - 1) / (HOPS_MIN - 1)), capped at 1, where L is the session length in
   windows and H the number of distinct distraction apps/sites. Risk is 0 with no session, or with a
   session of only neutral (Other/Excluded) windows.
@@ -62,7 +63,7 @@ class RulesBaseline:
             self._end_session()
             base = self.last or self._readout(WORKING, 0.0, 0.0)
             return Readout(**{**base.__dict__, "away": True})
-        if window.category in c.work_categories:
+        if window.category not in c.distraction_categories:  # work, Other, Excluded
             if self.length and self.work_run < c.GAP_OK:
                 self.work_run += 1
                 self.last = self._session_readout()  # might still be a blip
@@ -72,9 +73,8 @@ class RulesBaseline:
             return self.last
         self.length += self.work_run + 1
         self.work_run = 0
-        if window.category in c.distraction_categories:
-            self.has_distraction = True
-            if getattr(window, "dominant", None):
-                self.sites.add(window.dominant)
+        self.has_distraction = True
+        if getattr(window, "dominant", None):
+            self.sites.add(window.dominant)
         self.last = self._session_readout()
         return self.last
