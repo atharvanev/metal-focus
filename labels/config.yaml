@@ -1,0 +1,8 @@
+# Auto-labeler thresholds (windows are 2 minutes). Never hard-code these; tune.py suggests changes.
+work_categories: [Coding, Docs]
+distraction_categories: [Chat, Video, Social]   # Other/Excluded are neutral: never start a labeled session alone
+BREAK_MAX: 5      # <= 5 windows (10 min) and back to work -> Short break
+RABBIT_MIN: 10    # >= 10 windows (20 min) -> Rabbit hole
+HOPS_MIN: 3       # >= 3 distinct distraction apps/sites without returning to work -> Rabbit hole
+GAP_OK: 1         # a work blip of <= 1 window does not end a distraction session
+DRIFT_MAX: 3      # Drifting = first ~1/3 of a rabbit hole, at most 3 windows
