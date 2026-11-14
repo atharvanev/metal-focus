@@ -158,7 +158,7 @@ readouts(window_start REAL, model TEXT, day TEXT, written_at REAL, params TEXT, 
   - `test-nudge`.
 - `bridge/server.py`: request dispatch, an outbox poll thread, and stdout writes behind one lock. Unknown method → error response. Malformed line → error response with `id: null`, keep running.
 - `bridge/store.py`: the only module that touches SQL.
-  - `open_store()` uses `data.db` (`KeyringStore`, `get_or_create_key` **in read-or-fail mode: never create a key**. If the DB doesn't exist, report `no_db` in `status` rather than creating it), then applies `bridge/schema.sql`.
+  - `open_store()` calls `data.db.open_existing()` (logger branch, be82def). It never creates a DB or key and raises `FileNotFoundError` / `KeyMissingError` / `WrongKeyError`, which `status` reports as `no_db` / `key_missing` / `wrong_key`. It then applies `bridge/schema.sql`.
   - Tests inject a plain `sqlite3` connection with the logger schema loaded.
 - Tests (`tests/bridge/`): protocol round-trips, outbox delivery and ack, check-in response writes (latency, dismissed is not a label), excluded samples redacted in output, never-create-key behaviour, malformed input survival.
 
