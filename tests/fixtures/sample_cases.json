@@ -1,0 +1,1139 @@
+{
+ "_about": "Golden cases for sample assembly (privacy rules), shared with the Swift sampler.",
+ "config": "repo defaults: logger/config.yaml + logger/financial.yaml; no config.local.yaml",
+ "cases": [
+  {
+   "name": "vscode_plain",
+   "inputs": {
+    "app": {
+     "bundle_id": "com.microsoft.VSCode",
+     "name": "Code"
+    },
+    "window": {
+     "title": "sampler.py — metal-focus",
+     "fullscreen": false
+    },
+    "browser": null,
+    "recency": {
+     "key_s": 1.0,
+     "click_s": 10.0,
+     "scroll_s": 2.5
+    },
+    "locked": false,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "dt": 4.0
+   },
+   "expected": {
+    "dt": 4.0,
+    "bundle_id": "com.microsoft.VSCode",
+    "app_name": "Code",
+    "window_title": "sampler.py — metal-focus",
+    "domain": null,
+    "private": null,
+    "excluded": 0,
+    "fullscreen": 0,
+    "locked": 0,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "key_active": 1,
+    "click_active": 0,
+    "scroll_active": 1
+   }
+  },
+  {
+   "name": "chrome_normal_tab",
+   "inputs": {
+    "app": {
+     "bundle_id": "com.google.Chrome",
+     "name": "Google Chrome"
+    },
+    "window": {
+     "title": "Video - YouTube",
+     "fullscreen": false
+    },
+    "browser": {
+     "url": "https://www.youtube.com/watch?v=abc&t=42#x",
+     "private": false
+    },
+    "recency": {
+     "key_s": 1.0,
+     "click_s": 10.0,
+     "scroll_s": 2.5
+    },
+    "locked": false,
+    "idle_s": 0.3,
+    "app_switches": 1,
+    "dt": 4.0
+   },
+   "expected": {
+    "dt": 4.0,
+    "bundle_id": "com.google.Chrome",
+    "app_name": "Google Chrome",
+    "window_title": "Video - YouTube",
+    "domain": "youtube.com",
+    "private": 0,
+    "excluded": 0,
+    "fullscreen": 0,
+    "locked": 0,
+    "idle_s": 0.3,
+    "app_switches": 1,
+    "key_active": 1,
+    "click_active": 0,
+    "scroll_active": 1
+   }
+  },
+  {
+   "name": "chrome_incognito",
+   "inputs": {
+    "app": {
+     "bundle_id": "com.google.Chrome",
+     "name": "Google Chrome"
+    },
+    "window": {
+     "title": "Secret",
+     "fullscreen": false
+    },
+    "browser": {
+     "url": "https://x.com/a",
+     "private": true
+    },
+    "recency": {
+     "key_s": 1.0,
+     "click_s": 10.0,
+     "scroll_s": 2.5
+    },
+    "locked": false,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "dt": 4.0
+   },
+   "expected": {
+    "dt": 4.0,
+    "bundle_id": "com.google.Chrome",
+    "app_name": "Google Chrome",
+    "window_title": null,
+    "domain": null,
+    "private": 1,
+    "excluded": 0,
+    "fullscreen": 0,
+    "locked": 0,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "key_active": 1,
+    "click_active": 0,
+    "scroll_active": 1
+   }
+  },
+  {
+   "name": "safari_private_unknown_dropped",
+   "inputs": {
+    "app": {
+     "bundle_id": "com.apple.Safari",
+     "name": "Safari"
+    },
+    "window": {
+     "title": "Page",
+     "fullscreen": false
+    },
+    "browser": {
+     "url": "https://x.com/a",
+     "private": null
+    },
+    "recency": {
+     "key_s": 1.0,
+     "click_s": 10.0,
+     "scroll_s": 2.5
+    },
+    "locked": false,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "dt": 4.0
+   },
+   "expected": {
+    "dt": 4.0,
+    "bundle_id": "com.apple.Safari",
+    "app_name": "Safari",
+    "window_title": null,
+    "domain": null,
+    "private": null,
+    "excluded": 0,
+    "fullscreen": 0,
+    "locked": 0,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "key_active": 1,
+    "click_active": 0,
+    "scroll_active": 1
+   }
+  },
+  {
+   "name": "arc_normal",
+   "inputs": {
+    "app": {
+     "bundle_id": "company.thebrowser.Browser",
+     "name": "Arc"
+    },
+    "window": {
+     "title": "Docs",
+     "fullscreen": true
+    },
+    "browser": {
+     "url": "https://docs.google.com/d/1",
+     "private": false
+    },
+    "recency": {
+     "key_s": 1.0,
+     "click_s": 10.0,
+     "scroll_s": 2.5
+    },
+    "locked": false,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "dt": 4.0
+   },
+   "expected": {
+    "dt": 4.0,
+    "bundle_id": "company.thebrowser.Browser",
+    "app_name": "Arc",
+    "window_title": "Docs",
+    "domain": "docs.google.com",
+    "private": 0,
+    "excluded": 0,
+    "fullscreen": 1,
+    "locked": 0,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "key_active": 1,
+    "click_active": 0,
+    "scroll_active": 1
+   }
+  },
+  {
+   "name": "browser_probe_failed",
+   "inputs": {
+    "app": {
+     "bundle_id": "com.google.Chrome",
+     "name": "Google Chrome"
+    },
+    "window": {
+     "title": "Page",
+     "fullscreen": false
+    },
+    "browser": null,
+    "recency": {
+     "key_s": 1.0,
+     "click_s": 10.0,
+     "scroll_s": 2.5
+    },
+    "locked": false,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "dt": 4.0
+   },
+   "expected": {
+    "dt": 4.0,
+    "bundle_id": "com.google.Chrome",
+    "app_name": "Google Chrome",
+    "window_title": null,
+    "domain": null,
+    "private": null,
+    "excluded": 0,
+    "fullscreen": 0,
+    "locked": 0,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "key_active": 1,
+    "click_active": 0,
+    "scroll_active": 1
+   }
+  },
+  {
+   "name": "browser_no_window_url",
+   "inputs": {
+    "app": {
+     "bundle_id": "com.google.Chrome",
+     "name": "Google Chrome"
+    },
+    "window": {
+     "title": "New Tab",
+     "fullscreen": false
+    },
+    "browser": {
+     "url": null,
+     "private": false
+    },
+    "recency": {
+     "key_s": 1.0,
+     "click_s": 10.0,
+     "scroll_s": 2.5
+    },
+    "locked": false,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "dt": 4.0
+   },
+   "expected": {
+    "dt": 4.0,
+    "bundle_id": "com.google.Chrome",
+    "app_name": "Google Chrome",
+    "window_title": "New Tab",
+    "domain": null,
+    "private": 0,
+    "excluded": 0,
+    "fullscreen": 0,
+    "locked": 0,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "key_active": 1,
+    "click_active": 0,
+    "scroll_active": 1
+   }
+  },
+  {
+   "name": "url_userinfo_port_upper",
+   "inputs": {
+    "app": {
+     "bundle_id": "com.google.Chrome",
+     "name": "Google Chrome"
+    },
+    "window": {
+     "title": "t",
+     "fullscreen": false
+    },
+    "browser": {
+     "url": "http://user:pw@WWW.Host.IO:8080/x?q=1",
+     "private": false
+    },
+    "recency": {
+     "key_s": 1.0,
+     "click_s": 10.0,
+     "scroll_s": 2.5
+    },
+    "locked": false,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "dt": 4.0
+   },
+   "expected": {
+    "dt": 4.0,
+    "bundle_id": "com.google.Chrome",
+    "app_name": "Google Chrome",
+    "window_title": "t",
+    "domain": "host.io",
+    "private": 0,
+    "excluded": 0,
+    "fullscreen": 0,
+    "locked": 0,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "key_active": 1,
+    "click_active": 0,
+    "scroll_active": 1
+   }
+  },
+  {
+   "name": "file_url_no_domain",
+   "inputs": {
+    "app": {
+     "bundle_id": "com.google.Chrome",
+     "name": "Google Chrome"
+    },
+    "window": {
+     "title": "secret.pdf",
+     "fullscreen": false
+    },
+    "browser": {
+     "url": "file:///Users/a/secret.pdf",
+     "private": false
+    },
+    "recency": {
+     "key_s": 1.0,
+     "click_s": 10.0,
+     "scroll_s": 2.5
+    },
+    "locked": false,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "dt": 4.0
+   },
+   "expected": {
+    "dt": 4.0,
+    "bundle_id": "com.google.Chrome",
+    "app_name": "Google Chrome",
+    "window_title": "secret.pdf",
+    "domain": null,
+    "private": 0,
+    "excluded": 0,
+    "fullscreen": 0,
+    "locked": 0,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "key_active": 1,
+    "click_active": 0,
+    "scroll_active": 1
+   }
+  },
+  {
+   "name": "chrome_internal_url",
+   "inputs": {
+    "app": {
+     "bundle_id": "com.google.Chrome",
+     "name": "Google Chrome"
+    },
+    "window": {
+     "title": "Settings",
+     "fullscreen": false
+    },
+    "browser": {
+     "url": "chrome://settings/",
+     "private": false
+    },
+    "recency": {
+     "key_s": 1.0,
+     "click_s": 10.0,
+     "scroll_s": 2.5
+    },
+    "locked": false,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "dt": 4.0
+   },
+   "expected": {
+    "dt": 4.0,
+    "bundle_id": "com.google.Chrome",
+    "app_name": "Google Chrome",
+    "window_title": "Settings",
+    "domain": null,
+    "private": 0,
+    "excluded": 0,
+    "fullscreen": 0,
+    "locked": 0,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "key_active": 1,
+    "click_active": 0,
+    "scroll_active": 1
+   }
+  },
+  {
+   "name": "excluded_password_manager",
+   "inputs": {
+    "app": {
+     "bundle_id": "com.1password.1password",
+     "name": "1Password"
+    },
+    "window": {
+     "title": "Vault",
+     "fullscreen": false
+    },
+    "browser": null,
+    "recency": {
+     "key_s": 1.0,
+     "click_s": 10.0,
+     "scroll_s": 2.5
+    },
+    "locked": false,
+    "idle_s": 0.3,
+    "app_switches": 1,
+    "dt": 4.0
+   },
+   "expected": {
+    "dt": 4.0,
+    "bundle_id": null,
+    "app_name": null,
+    "window_title": null,
+    "domain": null,
+    "private": null,
+    "excluded": 1,
+    "fullscreen": 0,
+    "locked": 0,
+    "idle_s": 0.3,
+    "app_switches": 1,
+    "key_active": 1,
+    "click_active": 0,
+    "scroll_active": 1
+   }
+  },
+  {
+   "name": "excluded_ibm_domain_suffix",
+   "inputs": {
+    "app": {
+     "bundle_id": "com.google.Chrome",
+     "name": "Google Chrome"
+    },
+    "window": {
+     "title": "repo",
+     "fullscreen": false
+    },
+    "browser": {
+     "url": "https://github.ibm.com/org/repo",
+     "private": false
+    },
+    "recency": {
+     "key_s": 1.0,
+     "click_s": 10.0,
+     "scroll_s": 2.5
+    },
+    "locked": false,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "dt": 4.0
+   },
+   "expected": {
+    "dt": 4.0,
+    "bundle_id": null,
+    "app_name": null,
+    "window_title": null,
+    "domain": null,
+    "private": null,
+    "excluded": 1,
+    "fullscreen": 0,
+    "locked": 0,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "key_active": 1,
+    "click_active": 0,
+    "scroll_active": 1
+   }
+  },
+  {
+   "name": "financial_listed_domain",
+   "inputs": {
+    "app": {
+     "bundle_id": "com.google.Chrome",
+     "name": "Google Chrome"
+    },
+    "window": {
+     "title": "Chase",
+     "fullscreen": false
+    },
+    "browser": {
+     "url": "https://secure.chase.com/x",
+     "private": false
+    },
+    "recency": {
+     "key_s": 1.0,
+     "click_s": 10.0,
+     "scroll_s": 2.5
+    },
+    "locked": false,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "dt": 4.0
+   },
+   "expected": {
+    "dt": 4.0,
+    "bundle_id": null,
+    "app_name": null,
+    "window_title": null,
+    "domain": null,
+    "private": null,
+    "excluded": 1,
+    "fullscreen": 0,
+    "locked": 0,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "key_active": 1,
+    "click_active": 0,
+    "scroll_active": 1
+   }
+  },
+  {
+   "name": "financial_domain_keyword",
+   "inputs": {
+    "app": {
+     "bundle_id": "com.google.Chrome",
+     "name": "Google Chrome"
+    },
+    "window": {
+     "title": "Welcome",
+     "fullscreen": false
+    },
+    "browser": {
+     "url": "https://online.mysmalltownbank.com/",
+     "private": false
+    },
+    "recency": {
+     "key_s": 1.0,
+     "click_s": 10.0,
+     "scroll_s": 2.5
+    },
+    "locked": false,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "dt": 4.0
+   },
+   "expected": {
+    "dt": 4.0,
+    "bundle_id": null,
+    "app_name": null,
+    "window_title": null,
+    "domain": null,
+    "private": null,
+    "excluded": 1,
+    "fullscreen": 0,
+    "locked": 0,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "key_active": 1,
+    "click_active": 0,
+    "scroll_active": 1
+   }
+  },
+  {
+   "name": "financial_fcu_keyword",
+   "inputs": {
+    "app": {
+     "bundle_id": "com.google.Chrome",
+     "name": "Google Chrome"
+    },
+    "window": {
+     "title": "Home",
+     "fullscreen": false
+    },
+    "browser": {
+     "url": "https://home.lakeviewfcu.org/",
+     "private": false
+    },
+    "recency": {
+     "key_s": 1.0,
+     "click_s": 10.0,
+     "scroll_s": 2.5
+    },
+    "locked": false,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "dt": 4.0
+   },
+   "expected": {
+    "dt": 4.0,
+    "bundle_id": null,
+    "app_name": null,
+    "window_title": null,
+    "domain": null,
+    "private": null,
+    "excluded": 1,
+    "fullscreen": 0,
+    "locked": 0,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "key_active": 1,
+    "click_active": 0,
+    "scroll_active": 1
+   }
+  },
+  {
+   "name": "financial_title_keyword",
+   "inputs": {
+    "app": {
+     "bundle_id": "com.google.Chrome",
+     "name": "Google Chrome"
+    },
+    "window": {
+     "title": "Account Summary - Online Banking",
+     "fullscreen": false
+    },
+    "browser": {
+     "url": "https://example.com/x",
+     "private": false
+    },
+    "recency": {
+     "key_s": 1.0,
+     "click_s": 10.0,
+     "scroll_s": 2.5
+    },
+    "locked": false,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "dt": 4.0
+   },
+   "expected": {
+    "dt": 4.0,
+    "bundle_id": null,
+    "app_name": null,
+    "window_title": null,
+    "domain": null,
+    "private": null,
+    "excluded": 1,
+    "fullscreen": 0,
+    "locked": 0,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "key_active": 1,
+    "click_active": 0,
+    "scroll_active": 1
+   }
+  },
+  {
+   "name": "financial_title_401k",
+   "inputs": {
+    "app": {
+     "bundle_id": "com.google.Chrome",
+     "name": "Google Chrome"
+    },
+    "window": {
+     "title": "Your 401(k) plan",
+     "fullscreen": false
+    },
+    "browser": {
+     "url": "https://example.com/",
+     "private": false
+    },
+    "recency": {
+     "key_s": 1.0,
+     "click_s": 10.0,
+     "scroll_s": 2.5
+    },
+    "locked": false,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "dt": 4.0
+   },
+   "expected": {
+    "dt": 4.0,
+    "bundle_id": null,
+    "app_name": null,
+    "window_title": null,
+    "domain": null,
+    "private": null,
+    "excluded": 1,
+    "fullscreen": 0,
+    "locked": 0,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "key_active": 1,
+    "click_active": 0,
+    "scroll_active": 1
+   }
+  },
+  {
+   "name": "financial_title_in_desktop_app",
+   "inputs": {
+    "app": {
+     "bundle_id": "com.microsoft.VSCode",
+     "name": "Code"
+    },
+    "window": {
+     "title": "balance.py — app",
+     "fullscreen": false
+    },
+    "browser": null,
+    "recency": {
+     "key_s": 1.0,
+     "click_s": 10.0,
+     "scroll_s": 2.5
+    },
+    "locked": false,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "dt": 4.0
+   },
+   "expected": {
+    "dt": 4.0,
+    "bundle_id": null,
+    "app_name": null,
+    "window_title": null,
+    "domain": null,
+    "private": null,
+    "excluded": 1,
+    "fullscreen": 0,
+    "locked": 0,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "key_active": 1,
+    "click_active": 0,
+    "scroll_active": 1
+   }
+  },
+  {
+   "name": "financial_app_bundle",
+   "inputs": {
+    "app": {
+     "bundle_id": "com.apple.stocks",
+     "name": "Stocks"
+    },
+    "window": {
+     "title": "Stocks",
+     "fullscreen": false
+    },
+    "browser": null,
+    "recency": {
+     "key_s": 1.0,
+     "click_s": 10.0,
+     "scroll_s": 2.5
+    },
+    "locked": false,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "dt": 4.0
+   },
+   "expected": {
+    "dt": 4.0,
+    "bundle_id": null,
+    "app_name": null,
+    "window_title": null,
+    "domain": null,
+    "private": null,
+    "excluded": 1,
+    "fullscreen": 0,
+    "locked": 0,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "key_active": 1,
+    "click_active": 0,
+    "scroll_active": 1
+   }
+  },
+  {
+   "name": "private_financial_tab_is_excluded",
+   "inputs": {
+    "app": {
+     "bundle_id": "com.google.Chrome",
+     "name": "Google Chrome"
+    },
+    "window": {
+     "title": "Chase",
+     "fullscreen": false
+    },
+    "browser": {
+     "url": "https://secure.chase.com/",
+     "private": true
+    },
+    "recency": {
+     "key_s": 1.0,
+     "click_s": 10.0,
+     "scroll_s": 2.5
+    },
+    "locked": false,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "dt": 4.0
+   },
+   "expected": {
+    "dt": 4.0,
+    "bundle_id": null,
+    "app_name": null,
+    "window_title": null,
+    "domain": null,
+    "private": null,
+    "excluded": 1,
+    "fullscreen": 0,
+    "locked": 0,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "key_active": 1,
+    "click_active": 0,
+    "scroll_active": 1
+   }
+  },
+  {
+   "name": "word_boundary_not_financial",
+   "inputs": {
+    "app": {
+     "bundle_id": "com.google.Chrome",
+     "name": "Google Chrome"
+    },
+    "window": {
+     "title": "Lo-fi beats - YouTube",
+     "fullscreen": false
+    },
+    "browser": {
+     "url": "https://youtube.com/",
+     "private": false
+    },
+    "recency": {
+     "key_s": 1.0,
+     "click_s": 10.0,
+     "scroll_s": 2.5
+    },
+    "locked": false,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "dt": 4.0
+   },
+   "expected": {
+    "dt": 4.0,
+    "bundle_id": "com.google.Chrome",
+    "app_name": "Google Chrome",
+    "window_title": "Lo-fi beats - YouTube",
+    "domain": "youtube.com",
+    "private": 0,
+    "excluded": 0,
+    "fullscreen": 0,
+    "locked": 0,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "key_active": 1,
+    "click_active": 0,
+    "scroll_active": 1
+   }
+  },
+  {
+   "name": "non_browser_ignores_browser_info",
+   "inputs": {
+    "app": {
+     "bundle_id": "com.microsoft.VSCode",
+     "name": "Code"
+    },
+    "window": {
+     "title": "file.py",
+     "fullscreen": false
+    },
+    "browser": {
+     "url": "https://x.com",
+     "private": false
+    },
+    "recency": {
+     "key_s": 1.0,
+     "click_s": 10.0,
+     "scroll_s": 2.5
+    },
+    "locked": false,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "dt": 4.0
+   },
+   "expected": {
+    "dt": 4.0,
+    "bundle_id": "com.microsoft.VSCode",
+    "app_name": "Code",
+    "window_title": "file.py",
+    "domain": null,
+    "private": null,
+    "excluded": 0,
+    "fullscreen": 0,
+    "locked": 0,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "key_active": 1,
+    "click_active": 0,
+    "scroll_active": 1
+   }
+  },
+  {
+   "name": "locked",
+   "inputs": {
+    "app": {
+     "bundle_id": "com.google.Chrome",
+     "name": "Google Chrome"
+    },
+    "window": {
+     "title": "Page",
+     "fullscreen": true
+    },
+    "browser": {
+     "url": "https://x.com",
+     "private": false
+    },
+    "recency": {
+     "key_s": 1.0,
+     "click_s": 10.0,
+     "scroll_s": 2.5
+    },
+    "locked": true,
+    "idle_s": 50.0,
+    "app_switches": 0,
+    "dt": 4.0
+   },
+   "expected": {
+    "dt": 4.0,
+    "bundle_id": null,
+    "app_name": null,
+    "window_title": null,
+    "domain": null,
+    "private": null,
+    "excluded": 0,
+    "fullscreen": null,
+    "locked": 1,
+    "idle_s": 50.0,
+    "app_switches": 0,
+    "key_active": 1,
+    "click_active": 0,
+    "scroll_active": 1
+   }
+  },
+  {
+   "name": "frontmost_unknown",
+   "inputs": {
+    "app": null,
+    "window": null,
+    "browser": null,
+    "recency": {
+     "key_s": 1.0,
+     "click_s": 10.0,
+     "scroll_s": 2.5
+    },
+    "locked": false,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "dt": 4.0
+   },
+   "expected": {
+    "dt": 4.0,
+    "bundle_id": null,
+    "app_name": null,
+    "window_title": null,
+    "domain": null,
+    "private": null,
+    "excluded": 0,
+    "fullscreen": null,
+    "locked": 0,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "key_active": 1,
+    "click_active": 0,
+    "scroll_active": 1
+   }
+  },
+  {
+   "name": "window_probe_failed",
+   "inputs": {
+    "app": {
+     "bundle_id": "com.microsoft.VSCode",
+     "name": "Code"
+    },
+    "window": null,
+    "browser": null,
+    "recency": {
+     "key_s": 1.0,
+     "click_s": 10.0,
+     "scroll_s": 2.5
+    },
+    "locked": false,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "dt": 4.0
+   },
+   "expected": {
+    "dt": 4.0,
+    "bundle_id": "com.microsoft.VSCode",
+    "app_name": "Code",
+    "window_title": null,
+    "domain": null,
+    "private": null,
+    "excluded": 0,
+    "fullscreen": null,
+    "locked": 0,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "key_active": 1,
+    "click_active": 0,
+    "scroll_active": 1
+   }
+  },
+  {
+   "name": "recency_unmeasured",
+   "inputs": {
+    "app": {
+     "bundle_id": "com.microsoft.VSCode",
+     "name": "Code"
+    },
+    "window": {
+     "title": "x",
+     "fullscreen": null
+    },
+    "browser": null,
+    "recency": null,
+    "locked": false,
+    "idle_s": null,
+    "app_switches": 0,
+    "dt": 4.0
+   },
+   "expected": {
+    "dt": 4.0,
+    "bundle_id": "com.microsoft.VSCode",
+    "app_name": "Code",
+    "window_title": "x",
+    "domain": null,
+    "private": null,
+    "excluded": 0,
+    "fullscreen": null,
+    "locked": 0,
+    "idle_s": null,
+    "app_switches": 0,
+    "key_active": null,
+    "click_active": null,
+    "scroll_active": null
+   }
+  },
+  {
+   "name": "recency_partial_and_boundary",
+   "inputs": {
+    "app": {
+     "bundle_id": "com.microsoft.VSCode",
+     "name": "Code"
+    },
+    "window": {
+     "title": "x",
+     "fullscreen": false
+    },
+    "browser": null,
+    "recency": {
+     "key_s": 4.0,
+     "click_s": 3.999,
+     "scroll_s": null
+    },
+    "locked": false,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "dt": 4.0
+   },
+   "expected": {
+    "dt": 4.0,
+    "bundle_id": "com.microsoft.VSCode",
+    "app_name": "Code",
+    "window_title": "x",
+    "domain": null,
+    "private": null,
+    "excluded": 0,
+    "fullscreen": 0,
+    "locked": 0,
+    "idle_s": 0.3,
+    "app_switches": 0,
+    "key_active": 0,
+    "click_active": 1,
+    "scroll_active": null
+   }
+  },
+  {
+   "name": "long_dt_after_gap_cap",
+   "inputs": {
+    "app": {
+     "bundle_id": "com.microsoft.VSCode",
+     "name": "Code"
+    },
+    "window": {
+     "title": "x",
+     "fullscreen": false
+    },
+    "browser": null,
+    "recency": {
+     "key_s": 4.5,
+     "click_s": 4.5,
+     "scroll_s": 4.5
+    },
+    "locked": false,
+    "idle_s": 4.5,
+    "app_switches": 2,
+    "dt": 4.6
+   },
+   "expected": {
+    "dt": 4.6,
+    "bundle_id": "com.microsoft.VSCode",
+    "app_name": "Code",
+    "window_title": "x",
+    "domain": null,
+    "private": null,
+    "excluded": 0,
+    "fullscreen": 0,
+    "locked": 0,
+    "idle_s": 4.5,
+    "app_switches": 2,
+    "key_active": 1,
+    "click_active": 1,
+    "scroll_active": 1
+   }
+  }
+ ]
+}

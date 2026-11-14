@@ -1,0 +1,38 @@
+# Auto-labeler thresholds (windows are 2 minutes). Never hard-code these; tune.py suggests changes.
+work_categories: [Coding, Docs]
+distraction_categories: [Chat, Video, Social]   # Other/Excluded are neutral: never start a labeled session alone
+BREAK_MAX: 5      # <= 5 windows (10 min) and back to work -> Short break
+RABBIT_MIN: 10    # >= 10 windows (20 min) -> Rabbit hole
+HOPS_MIN: 3       # >= 3 distinct distraction apps/sites without returning to work -> Rabbit hole
+GAP_OK: 1         # a work blip of <= 1 window does not end a distraction session
+DRIFT_MAX: 3      # Drifting = first ~1/3 of a rabbit hole, at most 3 windows
+
+# Check-in scheduler (CLAUDE.md "Check-ins"). Windows are 2 minutes.
+checkins:
+  question: "What were you doing the last 10 min?"
+  covers_windows: 5            # "the last 10 min"
+  expires_s: 60                # auto-dismiss
+  budget:                      # max check-ins per local day, by days since logging started
+    week1: 6                   # days 0-6
+    weeks2_3: 4                # days 7-20
+    later: 2                   # day 21+
+    random_per_day: 1          # reserved for the unbiased eval prompt
+    min_gap_min: 60
+    skip_streak: 3             # this many skips in a row ...
+    backoff_per_day: 1         # ... -> at most this many per day ...
+    backoff_days: 2            # ... for this many days
+  uncertain:
+    top_prob_below: 0.55
+    for_windows: 2
+    sb_vs_drift_within: 0.15
+  gray_zone_windows: [5, 10]   # session longer than 5 windows (10 min) and shorter than 10 (20 min)
+  ambiguous_app_windows: 5     # first 10+ min of the day on a low-confidence app/site
+  random_hours: [9, 22]        # local hours the random prompt is drawn from
+  suppress:
+    focus_windows: 13          # 25+ min work stretch ...
+    focus_min_typing_frac: 0.2 # ... with steady typing
+    after_nudge_min: 10
+    quiet_hours: [0, 8]        # local [start, end)
+    fullscreen: true
+    meeting_bundle_ids: [us.zoom.xos, com.microsoft.teams2, com.apple.FaceTime, com.cisco.webexmeetingsapp]
+    meeting_domains: [meet.google.com, zoom.us, teams.microsoft.com, whereby.com]
