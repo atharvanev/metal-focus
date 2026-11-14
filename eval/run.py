@@ -112,10 +112,10 @@ def build_models(train_obs, eval_obs, hcfg: dict) -> dict[str, dict]:
         "hsmm": {"live": lambda: LiveHSMM(hsmm_p, hcfg), "loglik": hsmm_ll, "params": hsmm_p},
         "hmm": {"live": lambda: LiveHMM(hmm_p, hcfg), "loglik": hmm_ll, "params": hmm_p},
     }
-    try:  # rules baseline (metal-focus-d1), when it lands and implements LiveModel
-        from baselines.rules import RulesModel  # type: ignore[import-not-found]
+    try:  # rules baseline (metal-focus-d1): the auto-labeler's rules run live, LiveModel
+        from baselines.rules import RulesBaseline
 
-        models["rules"] = {"live": RulesModel}
+        models["rules"] = {"live": RulesBaseline}
     except ImportError:
         pass
     return models
