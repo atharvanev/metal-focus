@@ -1,0 +1,25 @@
+[project]
+name = "metal-focus"
+version = "0.1.0"
+description = "On-device rabbit hole detector for macOS"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "pyobjc-framework-Cocoa",
+    "pyobjc-framework-Quartz",
+    "pyobjc-framework-ApplicationServices",
+    "sqlcipher3-wheels",
+    "keyring",
+    "pyyaml",
+]
+
+[dependency-groups]
+dev = ["pytest"]
+
+[tool.uv]
+package = false
+python-preference = "only-managed"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = ["macos: hits real macOS APIs / permissions (deselect with -m 'not macos')"]
