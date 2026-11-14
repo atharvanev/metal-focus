@@ -20,11 +20,17 @@ def work_categories(cfg: dict) -> tuple[str, ...]:
         return tuple(cfg["work_categories"])
 
 
-def session_start_index(windows: Sequence[Any], work: tuple[str, ...], gap_ok: int = 1) -> int:
+def session_start_index(
+    windows: Sequence[Any], work: tuple[str, ...], distraction: tuple[str, ...], gap_ok: int = 1
+) -> int:
     """Index of the first window of the distraction session ending at windows[-1].
 
-    Walks back over non-work, non-away windows, tolerating up to `gap_ok`
-    consecutive work windows (a 1-window work blip, as in the auto-labeler).
+    Only distraction categories (Chat, Video, Social) extend the session; up to
+    `gap_ok` consecutive work windows are tolerated as a blip. Everything else
+    is a boundary: Away, `Excluded` (e.g. confidential work apps, which must
+    never be swept into a session) and `Other`. The session's start becomes
+    nudge_responses.window_start, and a "Back to work" answer hard-labels that
+    whole range, so erring short is the safe direction.
     """
     i = len(windows) - 1
     start = i
@@ -37,9 +43,11 @@ def session_start_index(windows: Sequence[Any], work: tuple[str, ...], gap_ok: i
             blip += 1
             if blip > gap_ok:
                 break
-        else:
+        elif w.category in distraction:
             blip = 0
             start = i
+        else:  # Excluded, Other, unknown
+            break
         i -= 1
     return start
 
@@ -74,7 +82,7 @@ def build_body(conn, windows: Sequence[Any], cfg: dict) -> tuple[str, float]:
     """(message body, session start epoch s) for the session ending at windows[-1]."""
     work = work_categories(cfg)
     ws = cfg["window_s"]
-    s = session_start_index(windows, work)
+    s = session_start_index(windows, work, tuple(cfg["distraction_categories"]))
     t0 = float(windows[s].window_start)
     t1 = float(windows[-1].window_start) + ws
     minutes = round((t1 - t0) / 60)

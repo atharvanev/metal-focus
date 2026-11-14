@@ -16,9 +16,11 @@ A missing DB, missing key, or wrong key means "can't run yet": retry later.
 
 Params: the nightly-trained file (hsmm.nightly.TRAINED_PARAMS) if it exists,
 else hsmm/cold_start_params.json (hand-set prior). A changed params file is
-picked up only at the next day rollover, never mid-day, so today's readouts
-stay past-only under the params that were live when they were written. Each
-row records the params' content hash, so rows trace to an exact version.
+picked up only while no window of the current day has been processed yet (day
+rollover, or the 03:30 nightly finishing before the first window of the day).
+Once a day has readouts its params are fixed: a rebuild replays the day under
+the same params, so today's readouts stay past-only under the params that
+were live. Each row records the params' content hash.
 
 After each tick, `on_rows(conn, day, new_rows, windows)` runs (the nudge engine
 by default); a hook error is logged and never stops the runner.
@@ -98,21 +100,24 @@ class LiveRunner:
         self.seen: list[tuple] = []  # fingerprints of windows of self.day already stepped
         ensure_schema(conn)
 
-    def _start_day(self, day: str) -> None:
-        params, self.params_used = load_params(self.params_path)
-        self.model.set_params(params)
+    def _start_day(self, day: str, reload: bool = True) -> None:
+        if reload:
+            params, version = load_params(self.params_path)
+            if version != self.params_used:
+                self.model.set_params(params)
+                self.params_used = version
         self.model.reset()
         self.day, self.seen = day, []
 
     def tick(self, day: str | None = None) -> list[dict]:
         """Process new windows of `day` (default: today, local). Returns new rows written."""
         day = day or date.today().isoformat()
-        if day != self.day:
-            self._start_day(day)
+        if day != self.day or not self.seen:
+            self._start_day(day)  # nothing processed today yet: newest params are fair game
         windows = list(self.load_day(self.conn, day))
         prints = [_fingerprint(w) for w in windows]
-        if prints[: len(self.seen)] != self.seen:  # windowing rebuilt the day: replay
-            self._start_day(day)
+        if prints[: len(self.seen)] != self.seen:  # windowing rebuilt the day: replay, same params
+            self._start_day(day, reload=False)
         rows = []
         for w in windows[len(self.seen) :]:
             r = self.model.step(w)

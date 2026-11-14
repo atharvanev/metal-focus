@@ -24,8 +24,10 @@ class NudgeGrade:
     precision: float | None  # TP / graded (None if nothing graded)
     n_fired: int
     n_graded: int  # fires that landed on a labeled window
-    false_alarms: int
-    false_alarms_per_day: float
+    false_alarms: int  # fires on windows labeled Working / Short break
+    # Only counts fires that land on labeled windows. With sparse truth (~1 random
+    # check-in/day) this is a LOWER bound; nudges_per_day is the upper bound.
+    false_alarms_on_labeled_per_day: float
 
 
 def grade_nudges(fires: Fires, truth: Truth) -> NudgeGrade:

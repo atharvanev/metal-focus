@@ -61,11 +61,26 @@ def test_rule_cooldown_ten_windows():
 # ---------------------------------------------------------------- text
 
 
+WORK, DIST = ("Coding", "Docs"), ("Chat", "Video", "Social")
+
+
 def test_session_start_allows_one_window_work_blip():
     ws = [W(0, "Coding", 0), W(1, "Coding", 0), W(2, "Video", 0), W(3, "Docs", 0), W(4, "Social", 0), W(5, "Video", 0)]
-    assert session_start_index(ws, ("Coding", "Docs")) == 2
+    assert session_start_index(ws, WORK, DIST) == 2
     ws2 = ws[:2] + [W(2, "Video", 0), W(3, "Docs", 0), W(4, "Docs", 0), W(5, "Video", 0)]
-    assert session_start_index(ws2, ("Coding", "Docs")) == 5
+    assert session_start_index(ws2, WORK, DIST) == 5
+
+
+@pytest.mark.parametrize("boundary", ["Excluded", "Other"])
+def test_excluded_and_other_end_the_session(boundary):
+    """An hour of confidential (Excluded) work before YouTube must not become part of the session."""
+    ws = [W(0, "Coding", 0)] + [W(1 + i, boundary, 0) for i in range(10)] + [W(11 + i, "Video", 0) for i in range(3)]
+    assert session_start_index(ws, WORK, DIST) == 11
+
+
+def test_away_ends_the_session():
+    ws = [W(0, "Video", 0), W(1, "Video", 0, is_away=1), W(2, "Social", 0)]
+    assert session_start_index(ws, WORK, DIST) == 2
 
 
 def test_hops_collapse_and_truncate():

@@ -15,7 +15,7 @@ def test_grade_nudges_counts_only_labeled_windows():
     fires = [[1, 2, 4], [0]]
     g = grade_nudges(fires, truth)
     assert (g.n_fired, g.n_graded, g.false_alarms) == (4, 2, 1)
-    assert g.precision == 0.5 and g.false_alarms_per_day == 0.5
+    assert g.precision == 0.5 and g.false_alarms_on_labeled_per_day == 0.5
 
 
 def test_episodes_need_a_rabbit_hole_window():
