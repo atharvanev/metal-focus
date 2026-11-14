@@ -78,9 +78,30 @@ def connect(db_path: Path, key: str) -> sqlcipher3.Connection:
     return conn
 
 
+SCHEMA_VERSION = "2"
+# Columns added after v1, as (table, column, type). SQLite has no ADD COLUMN IF NOT EXISTS, so every
+# opener (Python here, the Swift app in Database.applySchema) adds missing ones. Keep both lists equal.
+ADDED_COLUMNS = (("samples", "media_playing", "INTEGER"),)
+
+
+def migrate(conn: sqlcipher3.Connection) -> None:
+    """Bring an older DB up to SCHEMA_VERSION. Idempotent; safe if another process migrates concurrently."""
+    for table, col, typ in ADDED_COLUMNS:
+        have = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+        if have and col not in have:
+            try:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {typ}")
+            except sqlcipher3.OperationalError as e:
+                if "duplicate column" not in str(e):
+                    raise
+    if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='meta'").fetchone():
+        conn.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', ?)", (SCHEMA_VERSION,))
+    conn.commit()
+
+
 def init_schema(conn: sqlcipher3.Connection) -> None:
     conn.executescript(_SCHEMA.read_text())
-    conn.commit()
+    migrate(conn)
 
 
 class DbSink:
@@ -102,7 +123,8 @@ class DbSink:
 
 
 def open_existing(db_path: Path | None = None, store: KeyStore | None = None) -> sqlcipher3.Connection:
-    """Open the logger's database for a reader (HSMM runner, bridge). Never creates the DB or a key.
+    """Open the logger's database for a reader (HSMM runner, dashboard). Never creates the DB or a key;
+    adds columns from newer schema versions (``migrate``) so readers can query them.
 
     Raises FileNotFoundError if the DB doesn't exist yet, KeyMissingError if its key is gone, and
     WrongKeyError if the key doesn't decrypt it. Defaults to ``common.paths.db_path()`` and the Keychain.
@@ -116,4 +138,6 @@ def open_existing(db_path: Path | None = None, store: KeyStore | None = None) ->
     key = (store or KeyringStore()).get()
     if not key:
         raise KeyMissingError(f"{db_path} exists but its key is missing from the key store.")
-    return connect(Path(db_path), key)
+    conn = connect(Path(db_path), key)
+    migrate(conn)
+    return conn

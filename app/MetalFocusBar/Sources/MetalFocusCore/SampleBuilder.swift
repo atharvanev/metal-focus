@@ -7,7 +7,8 @@ public enum SampleBuilder {
 
     public static func build(
         ts: Double, tzOffsetMin: Int, dt: Double, app: AppInfo?, window: WindowInfo?, browser: BrowserInfo?,
-        idleS: Double?, recency: InputRecency?, locked: Bool, appSwitches: Int, cfg: LoggerConfig
+        idleS: Double?, recency: InputRecency?, locked: Bool, appSwitches: Int, cfg: LoggerConfig,
+        mediaPlaying: Bool? = nil
     ) -> Sample {
         var bundleId = app?.bundleId
         var appName = app?.name
@@ -36,6 +37,8 @@ public enum SampleBuilder {
             idleS: idleS, appSwitches: appSwitches,
             keyActive: recency.flatMap { active($0.keyS, dt) },
             clickActive: recency.flatMap { active($0.clickS, dt) },
-            scrollActive: recency.flatMap { active($0.scrollS, dt) })
+            scrollActive: recency.flatMap { active($0.scrollS, dt) },
+            // A 0/1 flag with no content, kept for excluded apps (it only decides Away); unknown when locked.
+            mediaPlaying: locked ? nil : flag(mediaPlaying))
     }
 }

@@ -22,7 +22,7 @@ ARC = {"bundle_id": "company.thebrowser.Browser", "name": "Arc"}
 VSCODE = {"bundle_id": "com.microsoft.VSCode", "name": "Code"}
 ACTIVE = {"key_s": 1.0, "click_s": 10.0, "scroll_s": 2.5}
 
-# (name, app, window, browser, recency, locked, idle_s, app_switches, dt)
+# (name, app, window, browser, recency, locked, idle_s, app_switches, dt[, media_playing])
 CASES = [
     ("vscode_plain", VSCODE, {"title": "sampler.py — metal-focus", "fullscreen": False}, None, ACTIVE, False, 0.3, 0, 4.0),
     ("chrome_normal_tab", CHROME, {"title": "Video - YouTube", "fullscreen": False},
@@ -54,13 +54,21 @@ CASES = [
     ("recency_partial_and_boundary", VSCODE, {"title": "x", "fullscreen": False}, None,
      {"key_s": 4.0, "click_s": 3.999, "scroll_s": None}, False, 0.3, 0, 4.0),
     ("long_dt_after_gap_cap", VSCODE, {"title": "x", "fullscreen": False}, None, {"key_s": 4.5, "click_s": 4.5, "scroll_s": 4.5}, False, 4.5, 2, 4.6),
+    ("video_playing_idle", CHROME, {"title": "Video - YouTube", "fullscreen": True},
+     {"url": "https://www.youtube.com/watch?v=abc", "private": False}, None, False, 300.0, 0, 4.0, True),
+    ("media_probe_says_no", VSCODE, {"title": "x", "fullscreen": False}, None, ACTIVE, False, 0.3, 0, 4.0, False),
+    ("locked_drops_media", CHROME, {"title": "Video", "fullscreen": True}, {"url": "https://youtube.com/", "private": False},
+     None, True, 300.0, 0, 4.0, True),
+    ("excluded_keeps_media_flag", {"bundle_id": "com.1password.1password", "name": "1Password"},
+     {"title": "Vault", "fullscreen": False}, None, None, False, 200.0, 0, 4.0, True),
 ]
 
 
 def build_cases() -> list[dict]:
     cfg = load_config(local_path=Path("/nonexistent/config.local.yaml"))
     out = []
-    for name, app, window, browser, recency, locked, idle_s, switches, dt in CASES:
+    for name, app, window, browser, recency, locked, idle_s, switches, dt, *rest in CASES:
+        media = rest[0] if rest else None
         s = build_sample(
             ts=0.0, tz_offset_min=0, dt=dt,
             app=AppInfo(app["bundle_id"], app["name"], 1) if app else None,
@@ -68,12 +76,13 @@ def build_cases() -> list[dict]:
             browser=BrowserInfo(**browser) if browser else None,
             idle_s=idle_s,
             recency=InputRecency(**recency) if recency else None,
-            locked=locked, app_switches=switches, cfg=cfg,
+            locked=locked, app_switches=switches, cfg=cfg, media_playing=media,
         )
         expected = {k: v for k, v in dataclasses.asdict(s).items() if k not in ("ts", "tz_offset_min")}
         out.append({"name": name,
                     "inputs": {"app": app, "window": window, "browser": browser, "recency": recency,
-                               "locked": locked, "idle_s": idle_s, "app_switches": switches, "dt": dt},
+                               "locked": locked, "idle_s": idle_s, "app_switches": switches, "dt": dt,
+                               "media_playing": media},
                     "expected": expected})
     return out
 

@@ -4,7 +4,8 @@ CREATE TABLE IF NOT EXISTS samples (
   bundle_id TEXT, app_name TEXT, window_title TEXT, domain TEXT,
   private INTEGER, excluded INTEGER NOT NULL, fullscreen INTEGER, locked INTEGER NOT NULL,
   idle_s REAL, app_switches INTEGER NOT NULL,
-  key_active INTEGER, click_active INTEGER, scroll_active INTEGER
+  key_active INTEGER, click_active INTEGER, scroll_active INTEGER,
+  media_playing INTEGER  -- 1: frontmost app holds a display-sleep assertion (video playing); v2, see data/db.py:migrate
 );
 CREATE INDEX IF NOT EXISTS samples_ts ON samples(ts);
 CREATE TABLE IF NOT EXISTS events (
@@ -14,7 +15,7 @@ CREATE TABLE IF NOT EXISTS events (
   detail TEXT
 );
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-INSERT OR IGNORE INTO meta (key, value) VALUES ('schema_version', '1');
+INSERT OR IGNORE INTO meta (key, value) VALUES ('schema_version', '2');
 -- Canonical DDL for the tables the Swift app reads/writes (agreed with menubar-app 2026-11-13).
 -- The Swift app opens the DB directly (no Python bridge); announce any change here to that session.
 CREATE TABLE IF NOT EXISTS checkins (

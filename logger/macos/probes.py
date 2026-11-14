@@ -1,5 +1,6 @@
 """Real macOS probes. Each returns None (never raises) when a permission is missing.
 
+Video playback comes from power assertions (no permission; see logger/media.py).
 Window titles come from the Accessibility API (needs Accessibility), not CGWindowList (which would
 need Screen Recording). Input activity comes only from CGEventSourceSecondsSinceLastEventType:
 seconds since the last key press / click / scroll, no content and no Input Monitoring permission.
@@ -8,16 +9,34 @@ There is deliberately no event tap or global input monitor anywhere in the logge
 
 from __future__ import annotations
 
+import ctypes
+
 import ApplicationServices as AX
+import objc
 import Quartz
-from AppKit import NSWorkspace
+from AppKit import NSRunningApplication, NSWorkspace
+from Foundation import NSBundle
 
 from logger.config import LoggerConfig
 from logger.macos.browser import query_browser
+from logger.media import frontmost_plays_media
 from logger.sample import AppInfo, BrowserInfo, InputRecency, WindowInfo
 
 _HID = Quartz.kCGEventSourceStateHIDSystemState
 _AX_TIMEOUT_S = 0.5  # a hung app must not stall the sampler
+
+
+# Power assertions are readable without any permission (it's what `pmset -g assertions` shows).
+_IOKIT: dict = {}
+objc.loadBundleFunctions(NSBundle.bundleWithIdentifier_("com.apple.framework.IOKit"), _IOKIT,
+                         [("IOPMCopyAssertionsByProcess", b"io^@")])
+_LIBPROC = ctypes.CDLL("/usr/lib/libproc.dylib")
+
+
+def _pid_path(pid: int) -> str | None:
+    buf = ctypes.create_string_buffer(4096)
+    n = _LIBPROC.proc_pidpath(int(pid), buf, ctypes.c_uint32(4096))
+    return buf.value.decode(errors="replace") if n > 0 else None
 
 
 def _ax_attr(element, attr):
@@ -60,6 +79,15 @@ class MacProbes:
             click_s=float(since(_HID, Quartz.kCGEventLeftMouseDown)),
             scroll_s=float(since(_HID, Quartz.kCGEventScrollWheel)),
         )
+
+    def media_playing(self, app: AppInfo) -> bool | None:
+        err, by_pid = _IOKIT["IOPMCopyAssertionsByProcess"](None)
+        if err != 0 or by_pid is None:
+            return None
+        flat = [dict(a) for entries in by_pid.values() for a in entries]
+        running = NSRunningApplication.runningApplicationWithProcessIdentifier_(app.pid)
+        url = running.bundleURL() if running is not None else None
+        return frontmost_plays_media(flat, app.pid, url.path() if url is not None else None, _pid_path)
 
     def screen_locked(self) -> bool:
         d = Quartz.CGSessionCopyCurrentDictionary() or {}

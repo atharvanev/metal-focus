@@ -14,7 +14,7 @@ class FakeProbes:
         self.values = {
             "frontmost": VSCODE, "window": WindowInfo("file.py", False),
             "browser": BrowserInfo("https://x.com", False), "idle_seconds": 0.5,
-            "input_recency": InputRecency(1.0, 1.0, 1.0), "screen_locked": False,
+            "input_recency": InputRecency(1.0, 1.0, 1.0), "screen_locked": False, "media_playing": False,
         }
         self.values.update(values)
         self.calls = []
@@ -32,6 +32,7 @@ class FakeProbes:
     def idle_seconds(self): return self._get("idle_seconds")
     def input_recency(self): return self._get("input_recency")
     def screen_locked(self): return self._get("screen_locked")
+    def media_playing(self, app): return self._get("media_playing")
 
 
 class FakeSink:
@@ -120,3 +121,19 @@ def test_clock_jump_backwards_never_gives_negative_dt():
     s.tick(); s.tick()
     assert sink.samples[1].dt == 4.0
     assert sink.events and sink.events[0][1] == "gap"
+
+
+def test_media_playing_flag_recorded():
+    s, sink = make(FakeProbes(media_playing=True))
+    s.tick()
+    assert sink.samples[0].media_playing == 1
+
+
+def test_media_probe_skipped_when_locked_and_failure_is_null():
+    probes = FakeProbes(screen_locked=True, media_playing=True)
+    s, sink = make(probes)
+    s.tick()
+    assert "media_playing" not in probes.calls and sink.samples[0].media_playing is None
+    s, sink = make(FakeProbes(media_playing=RuntimeError("iokit")))
+    s.tick()
+    assert sink.samples[0].media_playing is None

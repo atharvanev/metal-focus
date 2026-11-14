@@ -56,6 +56,7 @@ class Sample:
     key_active: int | None
     click_active: int | None
     scroll_active: int | None
+    media_playing: int | None = None
 
 
 def _flag(v: bool | None) -> int | None:
@@ -79,6 +80,7 @@ def build_sample(
     locked: bool,
     app_switches: int,
     cfg: LoggerConfig,
+    media_playing: bool | None = None,
 ) -> Sample:
     bundle_id = app.bundle_id if app else None
     app_name = app.name if app else None
@@ -123,4 +125,6 @@ def build_sample(
         key_active=_active(r.key_s, dt) if r else None,
         click_active=_active(r.click_s, dt) if r else None,
         scroll_active=_active(r.scroll_s, dt) if r else None,
+        # A 0/1 flag with no content, kept for excluded apps (it only decides Away); unknown when locked.
+        media_playing=None if locked else _flag(media_playing),
     )

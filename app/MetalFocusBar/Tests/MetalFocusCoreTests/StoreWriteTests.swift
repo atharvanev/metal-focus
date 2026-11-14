@@ -16,11 +16,11 @@ enum TestDB {
         let (store, db) = try TestDB.open()
         let full = Sample(ts: 10.5, tzOffsetMin: -300, dt: 4.2, bundleId: "com.google.Chrome", appName: "Google Chrome",
                           windowTitle: "t", domain: "example.com", isPrivate: 0, excluded: 0, fullscreen: 1, locked: 0,
-                          idleS: 1.5, appSwitches: 2, keyActive: 1, clickActive: 0, scrollActive: 1)
+                          idleS: 1.5, appSwitches: 2, keyActive: 1, clickActive: 0, scrollActive: 1, mediaPlaying: 1)
         try await store.write(sample: full)
         var empty = full
         empty.bundleId = nil; empty.appName = nil; empty.windowTitle = nil; empty.domain = nil; empty.isPrivate = nil
-        empty.fullscreen = nil; empty.idleS = nil; empty.keyActive = nil; empty.clickActive = nil; empty.scrollActive = nil
+        empty.fullscreen = nil; empty.mediaPlaying = nil; empty.idleS = nil; empty.keyActive = nil; empty.clickActive = nil; empty.scrollActive = nil
         empty.ts = 11
         try await store.write(sample: empty)
         let rows = try db.query("SELECT * FROM samples ORDER BY id", [])

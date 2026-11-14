@@ -113,5 +113,21 @@ public final class Database: @unchecked Sendable {
         let path = repo.appendingPathComponent("data/schema.sql")
         guard let sql = try? String(contentsOf: path, encoding: .utf8) else { throw DBError.schemaMissing(path.path) }
         try exec(sql)
+        try migrate()
+    }
+
+    /// Port of data/db.py `migrate`: columns added after v1 (SQLite has no ADD COLUMN IF NOT EXISTS).
+    /// Keep this list equal to data/db.py ADDED_COLUMNS.
+    public static let schemaVersion = "2"
+    public static let addedColumns: [(table: String, column: String, type: String)] = [("samples", "media_playing", "INTEGER")]
+
+    public func migrate() throws {
+        for (table, column, type) in Self.addedColumns {
+            let have = Set(try query("PRAGMA table_info(\(table))").compactMap { $0["name"]?.string })
+            guard !have.isEmpty, !have.contains(column) else { continue }
+            do { try exec("ALTER TABLE \(table) ADD COLUMN \(column) \(type)") }
+            catch DBError.sqlite(_, let msg) where msg.contains("duplicate column") {}  // another process won the race
+        }
+        _ = try run("INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', ?)", [.text(Self.schemaVersion)])
     }
 }

@@ -47,3 +47,7 @@ def test_report_keys():
     r = report(load_config())
     assert "accessibility" in r and "input_monitoring" not in r
     assert all(v in (True, False, None) for v in r.values())
+
+
+def test_media_playing_is_bool(probes):
+    assert probes.media_playing(probes.frontmost()) in (True, False)

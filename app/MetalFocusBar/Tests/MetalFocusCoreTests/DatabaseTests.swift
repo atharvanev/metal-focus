@@ -93,6 +93,30 @@ final class MemoryKeyStore: KeyStore, @unchecked Sendable {
         #expect(throws: DBError.self) { try db.applySchema(repo: TestRepo.tempDir()) }
     }
 
+    @Test func migratesV1Samples() throws {
+        let db = try Database(url: dbURL(), key: keyA)
+        try db.exec("""
+            CREATE TABLE samples (id INTEGER PRIMARY KEY, ts REAL NOT NULL, tz_offset_min INTEGER NOT NULL,
+              dt REAL NOT NULL, bundle_id TEXT, app_name TEXT, window_title TEXT, domain TEXT, private INTEGER,
+              excluded INTEGER NOT NULL, fullscreen INTEGER, locked INTEGER NOT NULL, idle_s REAL,
+              app_switches INTEGER NOT NULL, key_active INTEGER, click_active INTEGER, scroll_active INTEGER);
+            CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+            INSERT INTO meta VALUES ('schema_version', '1');
+            """)
+        try db.applySchema(repo: TestRepo.root)
+        try db.applySchema(repo: TestRepo.root)
+        let cols = try db.query("PRAGMA table_info(samples)").compactMap { $0["name"]?.string }
+        #expect(cols.last == "media_playing" && cols.filter { $0 == "media_playing" }.count == 1)
+        #expect(try db.query("SELECT value FROM meta WHERE key='schema_version'").first?["value"] == .text("2"))
+    }
+
+    @Test func freshSchemaMatchesMigrationList() throws {
+        let db = try Database(url: dbURL(), key: keyA)
+        try db.applySchema(repo: TestRepo.root)
+        let cols = Set(try db.query("PRAGMA table_info(samples)").compactMap { $0["name"]?.string })
+        for c in Database.addedColumns { #expect(cols.contains(c.column)) }
+    }
+
     @Test func queryAndTransaction() throws {
         let db = try Database(url: dbURL(), key: keyA)
         try db.applySchema(repo: TestRepo.root)

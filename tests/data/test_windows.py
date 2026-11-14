@@ -135,3 +135,38 @@ def test_load_day_reads_db(tmp_path, rules):
         sink.write_sample(FakeSample(**{k: row[k] for k in (f.name for f in dataclasses.fields(FakeSample))}))
     ws = load_day(conn, DAY, now=NOON + 3600, rules=rules)
     assert [w.window_start for w in ws] == [NOON] and ws[0].category == "Coding"
+
+
+def _with_media(rows, value):
+    return [{**r, "media_playing": value} for r in rows]
+
+
+def test_idle_while_video_plays_is_not_away(rules):
+    rows = _with_media(fill(NOON, 30, bundle_id="com.google.Chrome", domain="youtube.com", idle_s=200.0, key=0), 1)
+    [w] = build(rows, rules)
+    assert not w.is_away and w.idle_seconds == 0 and w.media_frac == 1.0 and w.category == "Video"
+
+
+def test_paused_video_idle_is_away(rules):
+    rows = _with_media(fill(NOON, 30, bundle_id="com.google.Chrome", domain="youtube.com", idle_s=200.0, key=0), 0)
+    [w] = build(rows, rules)
+    assert w.is_away and w.media_frac == 0.0
+
+
+def test_video_for_part_of_window(rules):
+    rows = fill(NOON, 30, idle_s=200.0, key=0)
+    rows = _with_media(rows[:20], 1) + _with_media(rows[20:], 0)  # 80 s watching, then 40 s idle
+    [w] = build(rows, rules)
+    assert w.idle_seconds == pytest.approx(40, abs=0.01) and not w.is_away
+    assert w.media_frac == pytest.approx(20 / 30)
+
+
+def test_media_unmeasured_keeps_old_behaviour(rules):
+    [w] = build(fill(NOON, 30, idle_s=200.0, key=0), rules)  # rows without the column (pre-v2 data)
+    assert w.is_away and w.media_frac is None
+
+
+def test_locked_with_media_is_still_away(rules):
+    rows = _with_media(fill(NOON, 30, idle_s=200.0, key=0, locked=1), None)
+    [w] = build(rows, rules)
+    assert w.is_away

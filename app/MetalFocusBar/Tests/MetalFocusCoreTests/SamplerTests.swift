@@ -9,6 +9,8 @@ final class FakeProbes: Probes, @unchecked Sendable {
     var win: WindowInfo? = WindowInfo(title: "main.swift", fullscreen: false)
     var browserInfo: BrowserInfo? = BrowserInfo(url: "https://example.com/x", isPrivate: false)
     var windowThrows = false
+    var media: Bool? = false
+    private(set) var mediaCalls = 0
     var frontmostDelay: TimeInterval = 0
     private(set) var windowCalls = 0
     private(set) var browserCalls = 0
@@ -27,6 +29,7 @@ final class FakeProbes: Probes, @unchecked Sendable {
     func browser(bundleId: String) throws -> BrowserInfo? { lock.withLock { browserCalls += 1 }; return browserInfo }
     func idleSeconds() throws -> Double? { 0.5 }
     func inputRecency() throws -> InputRecency? { InputRecency(keyS: 1, clickS: 100, scrollS: nil) }
+    func mediaPlaying(app: AppInfo) throws -> Bool? { lock.withLock { mediaCalls += 1 }; return media }
 }
 
 actor RecordingSink: SampleSink {
@@ -49,6 +52,17 @@ final class FakeClock: @unchecked Sendable {
         let sink = RecordingSink(), sw = SwitchCounter()
         let s = Sampler(probes: probes, switches: sw, sink: sink, cfg: cfg, clock: { clock.t }, tzOffset: { -300 })
         return (s, sink, sw, clock, probes)
+    }
+
+    @Test func mediaFlagRecordedAndSkippedWhenLocked() async {
+        let p = FakeProbes(); p.media = true
+        let (s, _, _, clock, _) = make(p)
+        #expect(await s.tick()?.mediaPlaying == 1)
+        p.locked = true; clock.t = 104
+        #expect(await s.tick()?.mediaPlaying == nil)
+        #expect(p.mediaCalls == 1)
+        p.locked = false; p.media = nil; clock.t = 108
+        #expect(await s.tick()?.mediaPlaying == nil)
     }
 
     @Test func firstTickDt() async {

@@ -31,7 +31,8 @@ Python is managed **only by uv**: a uv-managed CPython 3.13 is pinned in `.pytho
 - `uv run python -m labels.checkins run`: check-in scheduler loop (writes `checkins` + `notify_outbox`; the Swift app shows prompts and writes responses).
 - `uv run python -m labels.tune suggest` / `apply KEY=V ...`: weekly threshold suggestions from train-split check-ins (needs 30+); `apply` is the user's approval step and logs to `labels/tuning_log.csv`.
 - `baselines/rules.RulesBaseline`: the auto-labeler rules run live, implementing `common.model_api.LiveModel` (compare against the HSMM).
-- `tests/fixtures/sample_cases.json`: golden privacy/sample-assembly cases for the Swift sampler; regenerate with `uv run python -m tests.fixtures.sample_cases` after changing logger rules.
+- Schema v2 added `samples.media_playing`; every opener runs `data.db.migrate` (Swift: `Database.migrate`), and both keep the same `ADDED_COLUMNS` list.
+- `tests/fixtures/sample_cases.json` and `media_cases.json`: golden privacy/sample-assembly and video-detection cases for the Swift sampler; regenerate with `uv run python -m tests.fixtures.sample_cases` after changing logger rules.
 
 ## Framework decision: MLX everywhere
 All model code (HSMM now, GRU/hybrid later) is written in **MLX** so the GRU port is the same framework, with shared array code, no NumPy/MLX conversion at the boundary, and one set of tests/utilities.
@@ -64,6 +65,7 @@ The **HSMM is the primary model** and gets built first. It has ~35 parameters, w
 - **Gray zone:** 10-20 min sessions with fewer than 3 apps stay unlabeled; the model decides them.
 - **Drifting:** the first few windows of a rabbit hole (lead-in). Target zone for nudges, before the 20-min mark.
 - **Away:** window with 90+ s idle, or laptop closed. Skip or label Away; never let it look like a rabbit hole.
+  Idle time while the frontmost app plays video (it holds a `PreventUserIdleDisplaySleep` power assertion; `samples.media_playing`, see `logger/media.py`) is watching, not idle, so passive video can't hide as Away.
 
 ## Auto-labeler (rules, not ML)
 Runs nightly in hindsight on categorized windows.
