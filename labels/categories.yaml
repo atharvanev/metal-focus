@@ -1,0 +1,44 @@
+# Rules categorizer: app / site -> one of Coding, Docs, Chat, Video, Social (else Other).
+# Order: excluded -> lecture rule -> domain (suffix match) -> bundle id (exact, then prefix) -> Other.
+# Low-confidence entries feed the "ambiguous app" check-in trigger. Personal additions go in
+# labels/categories.local.yaml (gitignored); its lists are appended to these.
+bundle_ids:
+  Coding: [com.microsoft.VSCode, com.todesktop.230313mzl4w4u92, dev.zed.Zed, com.apple.dt.Xcode,
+           com.googlecode.iterm2, com.apple.Terminal, dev.warp.Warp-Stable, com.mitchellh.ghostty,
+           com.sublimetext.4, com.github.GitHubClient, com.postmanlabs.mac, com.docker.docker]
+  Docs: [com.apple.Preview, com.apple.iWork.Pages, com.apple.iWork.Numbers, com.apple.iWork.Keynote,
+         com.microsoft.Word, com.microsoft.Excel, com.microsoft.Powerpoint, notion.id, md.obsidian,
+         com.apple.Notes, com.readdle.PDFExpert-Mac, com.adobe.Reader, org.zotero.zotero,
+         com.anthropic.claudefordesktop, com.openai.chat]
+  Chat: [com.tinyspeck.slackmacgap, com.hnc.Discord, com.apple.MobileSMS, net.whatsapp.WhatsApp,
+         ru.keepcoder.Telegram, com.microsoft.teams2, us.zoom.xos, com.apple.mail, com.microsoft.Outlook,
+         com.apple.FaceTime]
+  Video: [com.apple.TV, org.videolan.vlc, com.colliderli.iina]
+  Social: []
+bundle_prefixes:
+  Coding: [com.jetbrains.]
+domains:
+  Coding: [github.com, gitlab.com, bitbucket.org, stackoverflow.com, stackexchange.com, localhost, 127.0.0.1,
+           pypi.org, npmjs.com, docs.python.org, developer.apple.com, readthedocs.io, readthedocs.org,
+           huggingface.co, ml-explore.github.io, crates.io, go.dev, kaggle.com, colab.research.google.com,
+           leetcode.com, vercel.com, aws.amazon.com]
+  Docs: [docs.google.com, drive.google.com, notion.so, overleaf.com, arxiv.org, scholar.google.com,
+         wikipedia.org, medium.com, claude.ai, chatgpt.com, canvas.ucr.edu, elearn.ucr.edu, ucr.edu,
+         coursera.org, edx.org, khanacademy.org]
+  Chat: [mail.google.com, outlook.office.com, outlook.live.com, slack.com, discord.com, messenger.com,
+         web.whatsapp.com, teams.microsoft.com, meet.google.com, zoom.us, calendar.google.com]
+  Video: [youtube.com, youtu.be, netflix.com, twitch.tv, hulu.com, disneyplus.com, primevideo.com,
+          max.com, vimeo.com, crunchyroll.com, spotify.com]
+  Social: [reddit.com, x.com, twitter.com, instagram.com, facebook.com, tiktok.com, linkedin.com,
+           news.ycombinator.com, threads.net, bsky.app, tumblr.com, pinterest.com, 9gag.com, quora.com]
+# Matches here are flagged low-confidence (could be work or a rabbit hole).
+low_confidence:
+  bundle_ids: [com.hnc.Discord]
+  domains: [youtube.com, youtu.be, wikipedia.org, discord.com, medium.com, twitch.tv, linkedin.com,
+            news.ycombinator.com, spotify.com]
+# YouTube etc. with lecture-like titles count as Docs (learning), high confidence.
+lecture:
+  category: Docs
+  domains: [youtube.com, youtu.be, vimeo.com]
+  title_keywords: [lecture, tutorial, course, lesson, "crash course", explained, walkthrough, conference,
+                   talk, seminar, workshop, mit, stanford, cs50, "how to", documentation, pycon, wwdc]
