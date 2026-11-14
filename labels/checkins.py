@@ -154,29 +154,32 @@ def _uncertain(ctx: Context, cfg: CheckinConfig) -> bool:
 
 
 def _open_session_length(ctx: Context, cfg: CheckinConfig) -> int:
-    """Length (windows) of the distraction session still running at the end of today's windows."""
-    lc = cfg.labels
-    ws = ctx.windows
-    t = len(ws) - 1
-    if t < 0 or ws[t].is_away or ws[t].category in lc.work_categories:
+    """Length (windows) of the distraction session still running at the end of today's windows.
+
+    Same session rule as labels/autolabel.py: only distraction windows extend a session; a run of
+    <= GAP_OK work/Other/Excluded windows between distraction windows is a blip.
+    """
+    from labels.autolabel import window_kinds
+
+    kind = window_kinds(ctx.windows, cfg.labels)
+    t = len(kind) - 1
+    if t < 0 or kind[t] != "D":
         return 0
-    start, has_distraction = t, False
+    start = t
     while t >= 0:
-        w = ws[t]
-        if w.is_away:
-            break
-        if w.category in lc.work_categories:
-            u = t
-            while u >= 0 and not ws[u].is_away and ws[u].category in lc.work_categories:
-                u -= 1
-            if t - u > lc.GAP_OK or u < 0 or ws[u].is_away:
-                break
-            t = u
+        if kind[t] == "D":
+            start = t
+            t -= 1
             continue
-        has_distraction |= w.category in lc.distraction_categories
-        start = t
-        t -= 1
-    return len(ws) - start if has_distraction else 0
+        if kind[t] == "A":
+            break
+        u = t
+        while u >= 0 and kind[u] in "WN":
+            u -= 1
+        if t - u > cfg.labels.GAP_OK or u < 0 or kind[u] != "D":
+            break
+        t = u
+    return len(kind) - start
 
 
 def _covered_key(ctx: Context, h: Mapping[str, Any]) -> str | None:

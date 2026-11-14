@@ -28,6 +28,12 @@ class FakeStore:
         return list(self.days.get(day, []))
 
 
+@pytest.fixture(autouse=True)
+def _isolated_home(monkeypatch, tmp_path):
+    """main() resolves the trained-params path under data_dir(); never touch the real one."""
+    monkeypatch.setenv("METAL_FOCUS_HOME", str(tmp_path / "home"))
+
+
 @pytest.fixture
 def conn():
     c = sqlite3.connect(":memory:")

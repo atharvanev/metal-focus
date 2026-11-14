@@ -3,7 +3,7 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Repo status
-As of 2026-11-13 `main` has: the Python activity logger (`logger/`, `data/db.py`; now the reference implementation and test oracle), windowing (`data/windows.py`), the rules categorizer, auto-labeler, label merge and check-in scheduler (`labels/`), and the HSMM in MLX with its live runner (`hsmm/`, GRU stub in `models_later/gru/`). Sampling is moving into the signed Swift menu bar app (`app/`, `bridge/`), which writes the same `samples` table. Not built yet: nudges, the rules/HMM baselines, threshold tuning, evaluation.
+As of 2026-11-13 `main` has: the Python activity logger (`logger/`, `data/db.py`; now the reference implementation and test oracle), windowing (`data/windows.py`), the rules categorizer, auto-labeler, label merge and check-in scheduler (`labels/`), and the HSMM in MLX with its live runner (`hsmm/`, GRU stub in `models_later/gru/`). Sampling is moving into the signed Swift menu bar app (`app/`, `bridge/`), which writes the same `samples` table. Also: the rules baseline (`baselines/rules.py`) and weekly threshold tuning (`labels/tune.py`). Nudges, the HMM baseline and evaluation are being built on the HSMM session's branch.
 
 ## Environment and commands (uv only)
 Python is managed **only by uv**: a uv-managed CPython 3.13 is pinned in `.python-version`, and `pyproject.toml` sets `python-preference = "only-managed"`. Never use pip, conda, brew Python or system Python for this repo. The project is not an installable package (`package = false`); top-level dirs are imported from the repo root (pytest `pythonpath = ["."]`).
@@ -28,7 +28,10 @@ Python is managed **only by uv**: a uv-managed CPython 3.13 is pinned in `.pytho
 - `labels/categories.yaml`: app/site -> category rules (+ low-confidence flags); personal additions in `labels/categories.local.yaml` (gitignored).
 - `labels/config.yaml`: auto-labeler thresholds and check-in scheduler settings (never hard-code them).
 - `labels.merge.load_training_labels(conn, day)`: per-window (state, source), check-in > nudge > auto, eval check-ins excluded. `labels.checkins.load_eval(conn, start, end)`: the eval set.
-- `uv run python -m labels.checkins run`: check-in scheduler loop (writes `checkins` + `notify_outbox`; the bridge shows prompts).
+- `uv run python -m labels.checkins run`: check-in scheduler loop (writes `checkins` + `notify_outbox`; the Swift app shows prompts and writes responses).
+- `uv run python -m labels.tune suggest` / `apply KEY=V ...`: weekly threshold suggestions from train-split check-ins (needs 30+); `apply` is the user's approval step and logs to `labels/tuning_log.csv`.
+- `baselines/rules.RulesBaseline`: the auto-labeler rules run live, implementing `common.model_api.LiveModel` (compare against the HSMM).
+- `tests/fixtures/sample_cases.json`: golden privacy/sample-assembly cases for the Swift sampler; regenerate with `uv run python -m tests.fixtures.sample_cases` after changing logger rules.
 
 ## Framework decision: MLX everywhere
 All model code (HSMM now, GRU/hybrid later) is written in **MLX** so the GRU port is the same framework, with shared array code, no NumPy/MLX conversion at the boundary, and one set of tests/utilities.

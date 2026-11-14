@@ -1,0 +1,14 @@
+# Nudge engine settings (CLAUDE.md "Nudge rule").
+risk_threshold: 0.6        # P(Drifting) + P(Rabbit hole)
+consecutive_windows: 2     # non-away readouts in a row above the threshold
+cooldown_windows: 10       # after any decision (shown, holdout, or dismissed)
+holdout_frac: 0.1          # fraction of firings logged but not shown (un-nudged data)
+snooze_minutes: 20
+expires_s: 60              # outbox row is never shown after created_at + this
+recency_s: 150             # only act on a window that ended within this many seconds
+window_s: 120
+max_hops: 4                # apps/domains shown in the message
+# Fallback if labels.config is unavailable (labels/config.yaml is canonical):
+work_categories: [Coding, Docs]
+# Only these extend a distraction session; Excluded / Other / Away end it.
+distraction_categories: [Chat, Video, Social]

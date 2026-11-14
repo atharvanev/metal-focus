@@ -82,8 +82,17 @@ def test_neutral_only_session_unlabeled(cfg):
     assert lab("WNNNNNNNNNNNW", cfg) == "W" + "." * 11 + "W"
 
 
-def test_neutral_inside_distraction_counts_toward_length(cfg):
-    assert lab("WDNNNNNNNNNW", cfg) == "WdddRRRRRRRW"
+def test_long_neutral_stretch_ends_session_and_is_never_a_rabbit_hole(cfg):
+    # An hour of Excluded (e.g. confidential work) after a distraction must not become a rabbit hole.
+    assert lab("WD" + "N" * 30 + "DW", cfg) == "W." + "." * 30 + "SW"
+
+
+def test_one_window_neutral_blip_does_not_end_session(cfg):
+    assert lab("W" + "DDDDD" + "N" + "DDDD" + "W", cfg) == "W" + "dddRRRRRRR" + "W"
+
+
+def test_session_ended_by_neutral_is_not_a_return_to_work(cfg):
+    assert lab("WDDDNNW", cfg) == "W.....W"
 
 
 def test_thresholds_come_from_config(cfg):
