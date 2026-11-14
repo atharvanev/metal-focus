@@ -40,6 +40,7 @@ All model code (HSMM now, GRU/hybrid later) is written in **MLX** so the GRU por
 - MLX is lazy: call `mx.eval(...)` at the end of each live step (before reading values, e.g. for the nudge rule) so latency is measurable and graphs don't accumulate.
 - Gotchas to respect: no in-place mutation of arrays (use `.at[]` updates or rebuild), float32 default (normalize every step / use log space to avoid underflow, as already required), and no `float64` on GPU (CPU stream supports it if HSMM numerics need it).
 - Tests on synthetic data run on the CPU stream so they are deterministic.
+- **Benchmark (2026-11-13, M2 Pro):** GPU is ~2.7x slower than CPU for the HSMM nightly update, EM and live step at 7-56 days (per-window `mx.eval` overhead dominates), so `TRAIN_DEVICE` stays `mx.cpu`. Report: `docs/benchmarks/2026-11-13-hsmm-train-device.md`; re-run with `uv run python -m hsmm.bench`.
 
 # Project: Rabbit Hole Detector (working name TBD: Mettle / Metal Mind / Locus / Bare Metal)
 
