@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Metal Focus</title>
+<link rel="stylesheet" href="/style.css">
+<script src="/app.js" defer></script>
+</head>
+<body>
+<header class="bar">
+  <h1>Metal Focus</h1>
+  <nav class="daynav" aria-label="Day">
+    <button id="prev" type="button" aria-label="Previous day">‹</button>
+    <select id="day" aria-label="Day"></select>
+    <button id="next" type="button" aria-label="Next day">›</button>
+  </nav>
+  <span id="status" class="pill" role="status">Loading…</span>
+</header>
+
+<main>
+  <p id="error" class="error" hidden></p>
+
+  <section class="tiles" id="tiles" aria-label="Day totals"></section>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Timeline</h2>
+      <span class="hint">2-minute windows · hover for details</span>
+    </div>
+    <div class="timeline-wrap">
+      <svg id="timeline" role="img" aria-label="Timeline of the day"></svg>
+      <div id="tip" class="tip" hidden></div>
+    </div>
+    <div class="legends">
+      <div class="legend" id="legend-cat" aria-label="Category colors"></div>
+      <div class="legend" id="legend-state" aria-label="Label colors"></div>
+    </div>
+  </section>
+
+  <div class="grid">
+    <section class="card"><h2>Time by category</h2><div id="by-cat" class="bars"></div></section>
+    <section class="card"><h2>Labels</h2><div id="by-state" class="bars"></div></section>
+    <section class="card"><h2>Top apps</h2><div id="apps" class="bars"></div></section>
+    <section class="card"><h2>Top sites</h2><div id="domains" class="bars"></div></section>
+  </div>
+
+  <section class="card">
+    <h2>Top window titles</h2>
+    <div class="scroll"><table id="titles"><thead><tr><th>App</th><th>Title</th><th class="num">Time</th></tr></thead><tbody></tbody></table></div>
+  </section>
+
+  <section class="card">
+    <h2>Check-ins &amp; nudges</h2>
+    <div class="scroll"><table id="prompts"><thead><tr><th>Time</th><th>Kind</th><th>Detail</th><th>Response</th></tr></thead><tbody></tbody></table></div>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Latest samples</h2>
+      <span class="hint">refreshes every 5 s</span>
+    </div>
+    <div class="scroll"><table id="live"><thead><tr><th>Time</th><th>App</th><th>Window title</th><th>Site</th><th>Flags</th><th class="num">Idle</th><th>Input</th></tr></thead><tbody></tbody></table></div>
+  </section>
+
+  <section class="card">
+    <details>
+      <summary><h2>All windows (table)</h2></summary>
+      <div class="scroll"><table id="windows"><thead><tr><th>Start</th><th>Category</th><th>Dominant</th><th>Label</th><th>Source</th><th class="num">Switches</th><th class="num">Idle s</th><th class="num">Typing</th><th class="num">Risk</th></tr></thead><tbody></tbody></table></div>
+    </details>
+  </section>
+</main>
+<footer class="foot">Local only: served from 127.0.0.1, reads your encrypted database, saves nothing.</footer>
+</body>
+</html>
