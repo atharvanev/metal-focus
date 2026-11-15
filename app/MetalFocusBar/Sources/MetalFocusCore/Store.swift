@@ -145,18 +145,29 @@ extension Store {
     /// Newest first. Excluded and private rows have app, bundle, title and domain removed.
     public func samples(since: Double? = nil, limit: Int = 200) throws -> [SampleRow] {
         try db.query("SELECT * FROM samples WHERE ts > ? ORDER BY ts DESC LIMIT ?",
-                     [.double(since ?? -Double.infinity), .int(Int64(limit))]).compactMap { r in
-            guard let ts = r["ts"]?.double, let dt = r["dt"]?.double else { return nil }
-            var s = SampleRow(ts: ts, dt: dt, bundleId: r["bundle_id"]?.string, appName: r["app_name"]?.string,
-                              windowTitle: r["window_title"]?.string, domain: r["domain"]?.string,
-                              isPrivate: r["private"]?.int, excluded: r["excluded"]?.int ?? 0,
-                              fullscreen: r["fullscreen"]?.int, locked: r["locked"]?.int ?? 0, idleS: r["idle_s"]?.double,
-                              appSwitches: r["app_switches"]?.int ?? 0, keyActive: r["key_active"]?.int,
-                              clickActive: r["click_active"]?.int, scrollActive: r["scroll_active"]?.int,
-                              mediaPlaying: r["media_playing"]?.int)
-            if s.excluded == 1 || s.isPrivate == 1 { s.appName = nil; s.bundleId = nil; s.windowTitle = nil; s.domain = nil }
-            return s
-        }
+                     [.double(since ?? -Double.infinity), .int(Int64(limit))]).compactMap(Self.sampleRow)
+    }
+
+    static func sampleRow(_ r: [String: SQLValue]) -> SampleRow? {
+        guard let ts = r["ts"]?.double, let dt = r["dt"]?.double else { return nil }
+        var s = SampleRow(ts: ts, dt: dt, bundleId: r["bundle_id"]?.string, appName: r["app_name"]?.string,
+                          windowTitle: r["window_title"]?.string, domain: r["domain"]?.string,
+                          isPrivate: r["private"]?.int, excluded: r["excluded"]?.int ?? 0,
+                          fullscreen: r["fullscreen"]?.int, locked: r["locked"]?.int ?? 0, idleS: r["idle_s"]?.double,
+                          appSwitches: r["app_switches"]?.int ?? 0, keyActive: r["key_active"]?.int,
+                          clickActive: r["click_active"]?.int, scrollActive: r["scroll_active"]?.int,
+                          mediaPlaying: r["media_playing"]?.int)
+        if s.excluded == 1 || s.isPrivate == 1 { s.appName = nil; s.bundleId = nil; s.windowTitle = nil; s.domain = nil }
+        return s
+    }
+
+    static func checkinRow(_ r: [String: SQLValue]) -> CheckinRow? {
+        guard let id = r["id"]?.int, let asked = r["asked_at"]?.double, let trig = r["trigger"]?.string,
+              let split = r["split"]?.string else { return nil }
+        return CheckinRow(id: Int64(id), askedAt: asked, trigger: trig, windowStart: r["window_start"]?.double,
+                          windowEnd: r["window_end"]?.double, modelTopState: r["model_top_state"]?.string,
+                          modelTopProb: r["model_top_prob"]?.double, response: r["response"]?.string,
+                          respondedAt: r["responded_at"]?.double, split: split)
     }
 
     public func events(since: Double? = nil, limit: Int = 100) throws -> [EventRow] {
@@ -165,13 +176,68 @@ extension Store {
     }
 
     public func checkins(limit: Int = 50) throws -> [CheckinRow] {
-        try db.query("SELECT * FROM checkins ORDER BY asked_at DESC LIMIT ?", [.int(Int64(limit))]).compactMap { r in
-            guard let id = r["id"]?.int, let asked = r["asked_at"]?.double, let trig = r["trigger"]?.string,
-                  let split = r["split"]?.string else { return nil }
-            return CheckinRow(id: Int64(id), askedAt: asked, trigger: trig, windowStart: r["window_start"]?.double,
-                              windowEnd: r["window_end"]?.double, modelTopState: r["model_top_state"]?.string,
-                              modelTopProb: r["model_top_prob"]?.double, response: r["response"]?.string,
-                              respondedAt: r["responded_at"]?.double, split: split)
+        try db.query("SELECT * FROM checkins ORDER BY asked_at DESC LIMIT ?", [.int(Int64(limit))]).compactMap(Self.checkinRow)
+    }
+
+    /// Totals and ranked lists for the local day containing `day`. Reads only. Missing `nudge_log` yields no nudges.
+    public func dayActivity(day: Date) throws -> DayActivity {
+        let start = Calendar.current.startOfDay(for: day)
+        let lo = start.timeIntervalSince1970
+        let hi = Calendar.current.date(byAdding: .day, value: 1, to: start)!.timeIntervalSince1970  // 23/25 h on DST days
+        let bounds: [SQLValue] = [.double(lo), .double(hi)]
+        let counts = try db.query(
+            "SELECT count(*) AS n, coalesce(sum(dt), 0) AS s FROM samples WHERE ts >= ? AND ts < ?", bounds).first
+        let apps = try ranked("""
+            SELECT CASE WHEN excluded = 1 THEN 'Excluded'
+                        WHEN locked = 1 OR COALESCE(idle_s, 0) >= \(Self.awayIdleS) THEN 'Away'
+                        ELSE COALESCE(app_name, bundle_id, 'Unknown') END AS name,
+                   SUM(dt) AS seconds
+            FROM samples WHERE ts >= ? AND ts < ?
+            GROUP BY name ORDER BY seconds DESC, name LIMIT 8
+            """, bounds)
+        let sites = try ranked("""
+            SELECT domain AS name, SUM(dt) AS seconds FROM samples
+            WHERE ts >= ? AND ts < ? AND domain IS NOT NULL AND excluded = 0 AND COALESCE(private, 0) = 0 AND locked = 0
+            GROUP BY domain ORDER BY seconds DESC, name LIMIT 8
+            """, bounds)
+        let titles = try ranked("""
+            SELECT window_title AS name, COALESCE(app_name, bundle_id, 'Unknown') AS detail, SUM(dt) AS seconds
+            FROM samples
+            WHERE ts >= ? AND ts < ? AND window_title IS NOT NULL AND excluded = 0 AND COALESCE(private, 0) = 0 AND locked = 0
+            GROUP BY detail, window_title ORDER BY seconds DESC, name LIMIT 12
+            """, bounds)
+        let checkins = try db.query(
+            "SELECT * FROM checkins WHERE asked_at >= ? AND asked_at < ? ORDER BY asked_at", bounds).compactMap(Self.checkinRow)
+        let samples = try db.query(
+            "SELECT * FROM samples WHERE ts >= ? AND ts < ? ORDER BY ts DESC LIMIT 20", bounds).compactMap(Self.sampleRow)
+        let events = try db.query(
+            "SELECT id, ts, kind, detail FROM events WHERE ts >= ? AND ts < ? ORDER BY ts DESC LIMIT 20", bounds).compactMap(Self.event)
+        return DayActivity(loggedSeconds: counts?["s"]?.double ?? 0, sampleCount: counts?["n"]?.int ?? 0,
+                           apps: apps, sites: sites, titles: titles, checkins: checkins, nudges: try nudges(bounds),
+                           samples: samples, events: events)
+    }
+
+    private func ranked(_ sql: String, _ params: [SQLValue]) throws -> [RankedTime] {
+        try db.query(sql, params).compactMap { r in
+            guard let name = r["name"]?.string, let seconds = r["seconds"]?.double else { return nil }
+            return RankedTime(name: name, seconds: seconds, detail: r["detail"]?.string)
+        }
+    }
+
+    private func nudges(_ bounds: [SQLValue]) throws -> [NudgeRow] {
+        let sql = """
+            SELECT l.window_start, l.risk, l.holdout, l.body, r.response
+            FROM nudge_log l LEFT JOIN nudge_responses r ON r.id = l.nudge_response_id
+            WHERE l.window_start >= ? AND l.window_start < ? ORDER BY l.window_start
+            """
+        do {
+            return try db.query(sql, bounds).compactMap { r in
+                guard let ws = r["window_start"]?.double, let risk = r["risk"]?.double else { return nil }
+                return NudgeRow(windowStart: ws, risk: risk, holdout: r["holdout"]?.int == 1,
+                                body: r["body"]?.string, response: r["response"]?.string)
+            }
+        } catch DBError.sqlite(_, let msg) where msg.contains("no such table") {
+            return []
         }
     }
 
@@ -210,5 +276,29 @@ extension Store {
                            topProb: (j["top_prob"] as? NSNumber)?.doubleValue,
                            minutesInState: (j["minutes_in_state"] as? NSNumber)?.doubleValue,
                            surprise: (j["surprise"] as? NSNumber)?.doubleValue, away: j["away"] as? Bool)
+    }
+
+    /// Local `YYYY-MM-DD`, the same key `readouts.day` stores.
+    static func localDay(_ day: Date, calendar: Calendar = .current) -> String {
+        let c = calendar.dateComponents([.year, .month, .day], from: day)
+        return String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
+    }
+
+    /// HSMM risk for one local day, oldest first. Away (and a readout with no risk) is nil so the
+    /// line breaks, the same rule as the dashboard. Empty when `readouts` does not exist yet.
+    public func riskSeries(day: Date) throws -> [RiskPoint] {
+        let rows: [[String: SQLValue]]
+        do {
+            rows = try db.query(
+                "SELECT window_start, readout FROM readouts WHERE model = ? AND day = ? ORDER BY window_start",
+                [.text(Self.readoutModel), .text(Self.localDay(day))])
+        } catch DBError.sqlite(_, let msg) where msg.contains("no such table") { return [] }
+        return rows.compactMap { r in
+            guard let ws = r["window_start"]?.double,
+                  let data = r["readout"]?.string?.data(using: .utf8),
+                  let j = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+            let away = (j["away"] as? Bool) ?? false
+            return RiskPoint(windowStart: ws, risk: away ? nil : (j["risk"] as? NSNumber)?.doubleValue)
+        }
     }
 }

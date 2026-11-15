@@ -206,7 +206,6 @@ private struct TodayModule: View {
     let segments: [Segment]
     let status: Status?
 
-    static let palette: [Color] = [.blue, .purple, .cyan]  // not green/orange/red: those mean focus states
     static let nonApps: Set<String> = ["Away", "Excluded", "Unknown"]
 
     private var tracked: Double { segments.filter { $0.label != "Away" }.reduce(0) { $0 + $1.end - $1.start } }
@@ -219,7 +218,7 @@ private struct TodayModule: View {
 
     var body: some View {
         let top = topApps
-        let colors = Dictionary(uniqueKeysWithValues: top.enumerated().map { ($1.name, Self.palette[$0]) })
+        let colors = AppColors.byRank(top.map(\.name))
 
         Module(title: "Today") {
             if segments.isEmpty {

@@ -164,6 +164,17 @@ struct AppIcon: View {
     }
 }
 
+/// App colors by rank within a day, shared by the popover and the viewer so an app keeps its color.
+/// Not green/orange/red: those mean focus states. Apps past the palette are drawn gray.
+enum AppColors {
+    static let palette: [Color] = [.blue, .purple, .cyan, .indigo, .pink, .teal, .brown]
+    static let other = Color.secondary.opacity(0.45)
+
+    static func byRank(_ names: [String]) -> [String: Color] {
+        Dictionary(names.prefix(palette.count).enumerated().map { ($1, palette[$0]) }, uniquingKeysWith: { a, _ in a })
+    }
+}
+
 enum Fmt {
     static func duration(_ seconds: Double) -> String {
         let m = Int((seconds / 60).rounded())

@@ -164,7 +164,7 @@ final class AppModel {
 
     func openViewer() {
         guard let store else { return }
-        ViewerWindow.show(store: store)
+        ViewerWindow.show(store: store, riskThreshold: nudge.riskThreshold)
     }
 
     func toggleLaunchAtLogin(_ on: Bool) {

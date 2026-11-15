@@ -91,6 +91,45 @@ public struct Segment: Sendable, Equatable {
     public var source: String
 }
 
+/// One ranked row on the day page (an app, a site, or a window title).
+public struct RankedTime: Sendable, Equatable {
+    public var name: String
+    public var seconds: Double
+    /// App name when `name` is a window title.
+    public var detail: String?
+}
+
+/// A nudge the engine decided to show (or hold out) during a day.
+public struct NudgeRow: Sendable, Equatable {
+    public var windowStart: Double
+    public var risk: Double
+    public var holdout: Bool
+    public var body: String?
+    public var response: String?
+}
+
+/// Read-only day page: the same totals, lists, and rows the local dashboard shows.
+public struct DayActivity: Sendable, Equatable {
+    public var loggedSeconds: Double
+    public var sampleCount: Int
+    public var apps: [RankedTime]
+    public var sites: [RankedTime]
+    public var titles: [RankedTime]
+    public var checkins: [CheckinRow]
+    public var nudges: [NudgeRow]
+    public var samples: [SampleRow]
+    public var events: [EventRow]
+
+    public static let empty = DayActivity(loggedSeconds: 0, sampleCount: 0, apps: [], sites: [], titles: [],
+                                          checkins: [], nudges: [], samples: [], events: [])
+}
+
+/// One point on the viewer's day risk line. `risk` is nil for an Away window, which breaks the line.
+public struct RiskPoint: Sendable, Equatable {
+    public var windowStart: Double
+    public var risk: Double?
+}
+
 /// The latest live-model readout (hsmm.runner `readouts` table), if fresh.
 public struct ReadoutInfo: Sendable, Equatable {
     public var windowStart: Double
