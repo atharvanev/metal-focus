@@ -1,6 +1,6 @@
 """Deploy the Python background jobs as LaunchAgents, running from a pinned copy of the code.
 
-    uv run python -m jobs deploy [--ref main] [--prompts]
+    uv run python -m jobs deploy [--ref main] [--prompts | --no-prompts]   (default: keep the last setting)
     uv run python -m jobs status
     uv run python -m jobs uninstall
 
@@ -128,13 +128,21 @@ def agents_dir() -> Path:
     return Path.home() / "Library" / "LaunchAgents"
 
 
-def deploy(ref: str = "main", prompts: bool = False, repo: Path | None = None) -> Path:
+def previous_prompts(runtime: Path) -> bool:
+    """The --prompts setting of the last deploy (so a plain redeploy never silently turns prompts off)."""
+    f = runtime / "DEPLOYED"
+    return f.exists() and "prompts=1" in f.read_text().split()
+
+
+def deploy(ref: str = "main", prompts: bool | None = None, repo: Path | None = None) -> Path:
     repo = repo or Path(_git(Path(__file__).resolve().parent, "rev-parse", "--show-toplevel"))
     main_checkout = Path(_git(repo, "rev-parse", "--path-format=absolute", "--git-common-dir")).parent
     sha = _git(repo, "rev-parse", "--verify", f"{ref}^{{commit}}")
     home = data_dir()
     runtime = home / "runtime"
     runtime.mkdir(mode=0o700, exist_ok=True)
+    if prompts is None:
+        prompts = previous_prompts(runtime)
     dest = runtime / sha[:12]
     if not dest.exists():
         export_tree(repo, sha, dest)

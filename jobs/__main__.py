@@ -12,7 +12,10 @@ def main(argv: list[str] | None = None) -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     dp = sub.add_parser("deploy", help="copy --ref to the runtime dir and (re)start the agents")
     dp.add_argument("--ref", default="main", help="git ref to deploy (committed tree only)")
-    dp.add_argument("--prompts", action="store_true", help="also run the check-in scheduler and nudge engine")
+    g = dp.add_mutually_exclusive_group()
+    g.add_argument("--prompts", dest="prompts", action="store_true", default=None,
+                   help="also run the check-in scheduler and nudge engine")
+    g.add_argument("--no-prompts", dest="prompts", action="store_false", help="turn prompts off")
     sub.add_parser("status", help="deployed commit and agent states")
     sub.add_parser("uninstall", help="stop and remove the agents")
     args = ap.parse_args(argv)

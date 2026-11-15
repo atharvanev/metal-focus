@@ -80,3 +80,25 @@ def test_point_current_and_prune(tmp_path):
     d.prune(rt, dirs[2])
     left = sorted(p.name for p in rt.iterdir() if not p.is_symlink())
     assert "sha2" in left and len(left) == d.KEEP_RUNTIMES
+
+
+def test_previous_prompts_kept(tmp_path):
+    assert d.previous_prompts(tmp_path) is False
+    (tmp_path / "DEPLOYED").write_text("abc\nmain\nprompts=1\n")
+    assert d.previous_prompts(tmp_path) is True
+    (tmp_path / "DEPLOYED").write_text("abc\nmain\nprompts=0\n")
+    assert d.previous_prompts(tmp_path) is False
+
+
+def test_cli_prompts_flags():
+    import argparse
+    from jobs.__main__ import main
+    import jobs.__main__ as m
+    seen = []
+    orig = m.d.deploy
+    m.d.deploy = lambda ref, prompts: seen.append(prompts)
+    try:
+        main(["deploy"]); main(["deploy", "--prompts"]); main(["deploy", "--no-prompts"])
+    finally:
+        m.d.deploy = orig
+    assert seen == [None, True, False]
