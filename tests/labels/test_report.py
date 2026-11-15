@@ -81,3 +81,28 @@ def test_json_no_titles(capsys):
     lines = [json.loads(x) for x in capsys.readouterr().out.splitlines()]
     assert lines and all(x.get("title") is None for x in lines)
     assert {x["kind"] for x in lines} >= {"summary", "unknown", "unsure"}
+
+
+def test_browser_without_domain_is_its_own_bucket(rules):
+    samples = [s("com.apple.Safari", None, None, dt=300), s("com.google.Chrome", None, None, dt=60),
+               s("com.apple.finder", title="Downloads", dt=30)]
+    r = build_report(samples, rules, browsers=frozenset({"com.apple.Safari", "com.google.Chrome"}))
+    assert r.by_category["browser (no site)"] == 360
+    assert [k.key for k in r.unknown] == ["com.apple.finder"]
+
+
+def test_max_refs_per_category_is_honoured(rules):
+    samples = [s("com.microsoft.VSCode", title=f"f{i}.py", dt=10 + i) for i in range(5)]
+    r = build_report(samples, rules, max_refs_per_category=2)
+    assert r.refs == [("com.microsoft.VSCode f4.py", "Coding"), ("com.microsoft.VSCode f3.py", "Coding")]
+
+
+def test_suggestion_failure_degrades_to_table(capsys, monkeypatch):
+    import labels.embed as embed
+
+    def boom(cfg):
+        raise OSError("offline and model not cached")
+    monkeypatch.setattr(embed, "load_minilm", boom)
+    assert main([], conn=FakeConn(SAMPLES)) == 0
+    cap = capsys.readouterr()
+    assert "Unknown (no rule matched)" in cap.out and "no suggestions" in cap.err

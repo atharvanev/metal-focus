@@ -1,9 +1,9 @@
 """Strict nearest-neighbour category suggestions over a small sentence-embedding model (MLX).
 
 Reference texts are app/site keys + titles the rules already categorized (high confidence). A query
-gets a category only if that category's score (mean similarity of its members among the top-k
-neighbours) clears ``min_score`` and beats the runner-up by ``min_margin``; otherwise None. Only
-categories that have references can be suggested, so it never invents one.
+gets a category only if that category's score (sum of its members' similarities among the top-k
+neighbours, divided by k, so a lone close neighbour can't outvote a majority) clears ``min_score``
+and beats the runner-up by ``min_margin``; otherwise None. Only categories that have references can be suggested, so it never invents one.
 
 Privacy: texts and vectors stay in memory. The only network use is the one-time weight download.
 """
@@ -11,6 +11,7 @@ Privacy: texts and vectors stay in memory. The only network use is the one-time 
 from __future__ import annotations
 
 import os
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import NamedTuple, Protocol, Sequence
@@ -23,7 +24,7 @@ from labels.categorizer import CATEGORIES
 
 DEFAULT_PATH = Path(__file__).parent / "embed.yaml"
 LABELS = (*CATEGORIES, "neutral")
-INSTALL_HINT = "category suggestions need the embed group: uv sync --group embed"
+INSTALL_HINT = "category suggestions need the embed group: uv run --group embed python -m labels.report"
 
 
 @dataclass(frozen=True)
@@ -71,7 +72,7 @@ def suggest(embedder: Embedder, refs: Sequence[tuple[str, str]], queries: Sequen
         by_cat: dict[str, list[float]] = {}
         for i in top:
             by_cat.setdefault(labels[i], []).append(row[i])
-        ranked = sorted(((sum(v) / len(v), c) for c, v in by_cat.items()), reverse=True)
+        ranked = sorted(((sum(v) / k, c) for c, v in by_cat.items()), reverse=True)
         best_s, best_c = ranked[0]
         second_s, second_c = ranked[1] if len(ranked) > 1 else (0.0, None)
         ok = best_s >= cfg.min_score and best_s - second_s >= cfg.min_margin
@@ -96,12 +97,14 @@ def load_minilm(cfg: EmbedConfig) -> MiniLMEmbedder:
     os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
     try:
         from huggingface_hub import snapshot_download
+        from huggingface_hub.errors import LocalEntryNotFoundError
         from mlx_embeddings.utils import load
     except ImportError as e:
         raise ImportError(INSTALL_HINT) from e
     try:
         path = snapshot_download(cfg.model, local_files_only=True)
-    except Exception:  # not cached yet: the one allowed network use
+    except LocalEntryNotFoundError:  # not cached yet: the one allowed network use
+        print(f"downloading {cfg.model} once (model weights only; no data is sent)", file=sys.stderr)
         path = snapshot_download(cfg.model)
     model, tokenizer = load(path)
     return MiniLMEmbedder(model, tokenizer)

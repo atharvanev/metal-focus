@@ -21,6 +21,7 @@ from typing import Iterable
 from labels.categorizer import Rules, categorize, load_rules
 
 TITLE_MAX = 50
+BROWSER_NO_SITE = "browser (no site)"
 
 
 @dataclass(frozen=True)
@@ -45,7 +46,10 @@ def _bucket(category: str, low: bool) -> str:
     return ("unknown" if low else "neutral") if category == "Other" else category
 
 
-def build_report(samples: Iterable[dict], rules: Rules, max_refs_per_category: int = 200) -> Report:
+def build_report(samples: Iterable[dict], rules: Rules, max_refs_per_category: int = 200,
+                 browsers: frozenset[str] = frozenset()) -> Report:
+    """``browsers``: bundle ids whose time without a domain (private windows, new tabs, Safari titles
+    dropped by privacy policy) is its own bucket, never an "unknown app" to write a rule for."""
     by_cat: dict[str, float] = defaultdict(float)
     keys: dict[tuple[str, str, bool], float] = defaultdict(float)
     titles: dict[str, Counter] = defaultdict(Counter)
@@ -56,6 +60,9 @@ def build_report(samples: Iterable[dict], rules: Rules, max_refs_per_category: i
         dt = float(r["dt"])
         c = categorize(r["bundle_id"], r["domain"], r["window_title"], rules, excluded=bool(r["excluded"]))
         bucket = _bucket(c.category, c.low_confidence)
+        if bucket == "unknown" and not r["domain"] and r["bundle_id"] in browsers:
+            by_cat[BROWSER_NO_SITE] += dt
+            continue
         by_cat[bucket] += dt
         key = None if r["excluded"] else (r["domain"] or r["bundle_id"])
         if key is None:
@@ -89,15 +96,15 @@ def _rows(conn, since: float) -> list[dict]:
     return [dict(zip(cols, row)) for row in cur.fetchall()]
 
 
-def _suggestions(rep: Report, top: int, err) -> dict[str, object]:
-    from labels.embed import load_embed_config, load_minilm, suggest
+def _suggestions(rep: Report, top: int, cfg, err) -> dict[str, object]:
+    from labels import embed
 
-    cfg = load_embed_config()
     try:
-        emb = load_minilm(cfg)
-    except ImportError as e:
+        emb = embed.load_minilm(cfg)
+    except Exception as e:  # not installed, offline before the first download, ...: table still prints
         print(f"(no suggestions: {e})", file=err)
         return {}
+    suggest = embed.suggest
     qs = rep.unknown[:top]
     out = suggest(emb, rep.refs, [f"{k.key} {k.title or ''}".strip() for k in qs], cfg)
     return {k.key: s for k, s in zip(qs, out)}
@@ -120,11 +127,16 @@ def main(argv: list[str] | None = None, conn=None, out=None, err=None) -> int:
         from data.db import open_existing
 
         conn = open_existing()
-    rep = build_report(_rows(conn, time.time() - a.days * 86400), load_rules())
+    from labels.embed import load_embed_config
+    from logger.config import load_config
+
+    ecfg = load_embed_config()
+    rep = build_report(_rows(conn, time.time() - a.days * 86400), load_rules(),
+                       max_refs_per_category=ecfg.max_refs_per_category, browsers=frozenset(load_config().browsers))
     if not rep.total_s:
         print(f"no samples in the last {a.days:g} days", file=out)
         return 0
-    sugg = {} if a.no_suggest else _suggestions(rep, a.top, err)
+    sugg = {} if a.no_suggest else _suggestions(rep, a.top, ecfg, err)
 
     def title(k: KeyStat) -> str | None:
         return None if a.no_titles else k.title

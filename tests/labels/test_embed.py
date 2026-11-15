@@ -42,7 +42,7 @@ def test_low_score_is_none():
 
 def test_near_tie_is_none():
     [s] = suggest(Fake(VEC), REFS, ["q_tie"], CFG)
-    assert s.category is None and s.score >= 0.4  # strong but ambiguous -> strict: no suggestion
+    assert s.category is None and s.runner_up is not None  # two categories equally close -> strict: no suggestion
 
 
 def test_unreferenced_category_never_suggested():
@@ -64,3 +64,11 @@ def test_config_defaults():
 def test_unknown_label_rejected():
     with pytest.raises(ValueError):
         suggest(Fake(VEC), [("code1", "Music")], ["q_code"], CFG)
+
+
+def test_majority_beats_one_close_neighbour():
+    # top-5: Video 0.70 x1 vs Social 0.55 x4 -> the majority wins (score = sum / k), not the single best mean
+    vec = {"q": [1.0, 0.0, 0.0], "vid": [0.70, math.sqrt(1 - 0.49), 0.0], "soc": [0.55, 0.0, math.sqrt(1 - 0.3025)]}
+    refs = [("vid", "Video")] + [("soc", "Social")] * 4
+    [s] = suggest(Fake(vec), refs, ["q"], CFG)
+    assert s.category == "Social"
