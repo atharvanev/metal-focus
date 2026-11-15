@@ -1,0 +1,16 @@
+---
+description: Keep parallel agents on separate git worktrees
+alwaysApply: true
+---
+
+# Work in a git worktree
+
+The primary checkout is shared by every agent. Do not edit files there, and do not switch or rename its branch.
+
+Before any edit, commit, or `git switch`:
+
+1. You are in the shared checkout when `git rev-parse --git-dir` and `git rev-parse --git-common-dir` resolve to the same path.
+2. Reuse `.claude/worktrees/<branch>` when that worktree already exists. Otherwise create one: `git worktree add .claude/worktrees/<branch> -b <branch>`. That directory is already gitignored.
+3. In Cursor, call `move_agent_to_root` with the worktree path before editing. In Claude Code, do the rest of the work from that directory.
+
+Read-only commands in the primary checkout are fine. One branch per worktree; do not reuse another agent's worktree.
