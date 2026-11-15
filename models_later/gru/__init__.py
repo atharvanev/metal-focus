@@ -8,8 +8,8 @@ Planned inputs per window (all from the logger's windows table):
 - switch_count, idle_seconds, is_away
 - typing_frac, click_frac, scroll_frac (fraction of samples with activity, 0..1, may be NULL)
 - time of day, breaks this hour, minutes worked before (derived)
-Hybrid variant additionally takes the HSMM's past-only Readout.hybrid_features()
-from an HSMM fit on training days only.
+Hybrid variant additionally takes the HSMM's past-only Readout fields (p_state, risk,
+minutes_in_state, hazard, forecast_risk, surprise) from an HSMM fit on training days only.
 
 Implementation notes for later: MLX (mlx.nn.GRU); live single-step forward on
 common.device.live_stream(); batched training on train_stream() (GPU only if benchmarked).
@@ -21,21 +21,8 @@ from typing import Any, Sequence
 
 from common.model_api import Readout
 
-FEATURES = (
-    "category",
-    "switch_count",
-    "idle_seconds",
-    "is_away",
-    "typing_frac",
-    "click_frac",
-    "scroll_frac",
-)
-
 
 class GRUModel:
-    def __init__(self, hybrid: bool = False):
-        self.hybrid = hybrid
-
     def reset(self) -> None:
         raise NotImplementedError("GRU is deferred until several weeks of data exist")
 

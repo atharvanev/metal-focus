@@ -30,12 +30,6 @@ class Readout:
     # nudge/ must not count Away readouts toward "risk > threshold for N windows".
     away: bool = False
 
-    def hybrid_features(self) -> list[float]:
-        """Flat feature vector of the HSMM outputs for the hybrid GRU."""
-        ps = list(self.p_state or ())
-        fr = [self.forecast_risk[k] for k in sorted(self.forecast_risk)]
-        return ps + [self.risk, self.minutes_in_state or 0.0, self.hazard or 0.0, self.surprise or 0.0] + fr
-
 
 @runtime_checkable
 class LiveModel(Protocol):
