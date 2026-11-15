@@ -9,7 +9,7 @@ from data.db import DbSink, KeyMissingError, WrongKeyError, connect, get_or_crea
 SAMPLE_COLUMNS = {
     "id", "ts", "tz_offset_min", "dt", "bundle_id", "app_name", "window_title", "domain",
     "private", "excluded", "fullscreen", "locked", "idle_s", "app_switches",
-    "key_active", "click_active", "scroll_active",
+    "key_active", "click_active", "scroll_active", "media_playing",  # 0/1 flags only
 }
 
 
@@ -103,7 +103,7 @@ def test_db_file_mode_0600(tmp_path):
 def test_init_schema_idempotent(tmp_path):
     conn = _open(tmp_path / "a.db", FakeKeyStore())
     init_schema(conn)
-    assert conn.execute("select value from meta where key='schema_version'").fetchone()[0] == "1"
+    assert conn.execute("select value from meta where key='schema_version'").fetchone()[0] == "2"
 
 
 def test_sink_roundtrip(tmp_path):
@@ -156,3 +156,30 @@ def test_open_existing_reads(tmp_path):
     DbSink(conn).write_sample(FakeSample())
     conn.close()
     assert open_existing(p, store).execute("select count(*) from samples").fetchone()[0] == 1
+
+
+V1_SAMPLES = """CREATE TABLE samples (id INTEGER PRIMARY KEY, ts REAL NOT NULL, tz_offset_min INTEGER NOT NULL,
+  dt REAL NOT NULL, bundle_id TEXT, app_name TEXT, window_title TEXT, domain TEXT, private INTEGER,
+  excluded INTEGER NOT NULL, fullscreen INTEGER, locked INTEGER NOT NULL, idle_s REAL, app_switches INTEGER NOT NULL,
+  key_active INTEGER, click_active INTEGER, scroll_active INTEGER);
+CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+INSERT INTO meta VALUES ('schema_version', '1');
+INSERT INTO samples (ts, tz_offset_min, dt, excluded, locked, app_switches) VALUES (1, 0, 4, 0, 0, 0);"""
+
+
+def test_v1_db_is_migrated_by_writers_and_readers(tmp_path):
+    from data.db import migrate, open_existing
+
+    store = FakeKeyStore()
+    path = tmp_path / "old.db"
+    conn = connect(path, get_or_create_key(path, store))
+    conn.executescript(V1_SAMPLES)
+    conn.close()
+    conn = open_existing(path, store)  # readers migrate too, so load_day can select the new column
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(samples)")]
+    assert cols[-1] == "media_playing"
+    assert conn.execute("SELECT media_playing FROM samples").fetchone() == (None,)
+    assert conn.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()[0] == "2"
+    migrate(conn)  # idempotent
+    init_schema(conn)
+    assert [r[1] for r in conn.execute("PRAGMA table_info(samples)")].count("media_playing") == 1

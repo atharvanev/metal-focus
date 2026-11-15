@@ -20,6 +20,8 @@ Python is managed **only by uv**: a uv-managed CPython 3.13 is pinned in `.pytho
 - **Permission policy (user, 2026-11-13):** macOS permissions (Accessibility etc.) belong only to the signed Swift app, never to Python. Do **not** recommend `python -m logger install`; the LaunchAgent was removed. The Python logger stays as the reference implementation of the sampling contract and as a test oracle.
 - **Contract the Swift sampler follows:** `data/schema.sql` (`samples`, `events`, plus the shared `checkins`, `nudge_responses`, `notify_outbox`), `logger/config.yaml` and `logger/financial.yaml` (exclusions), and the privacy semantics in `logger/sample.py:build_sample`. Announce any schema change to the app session first.
 - `uv run python -m logger status`: sample count, last sample, recent events (read-only; never creates a key).
+- Background jobs: `uv run python -m jobs deploy [--prompts | --no-prompts]` (default keeps the last setting) / `status` / `uninstall`. Deploys the committed `main` tree to `<data dir>/runtime/<sha>` (outside ~/Documents, so no Documents permission) with its own `uv sync` and writes `runtime/jobs.json`. The menu bar app (the only login item) runs those jobs as child processes: the HSMM runner, nightly update (once a day after 03:30) and (with `--prompts`) the check-in scheduler + nudge engine. They are spawned with responsibility disclaimed (`app/.../JobSupervisor.swift`, private `responsibility_spawnattrs_setdisclaim`), so they hold none of the app's permissions; `SourceGuardTests` enforces this. There are no LaunchAgents (deploy removes the old `com.metalfocus.*` ones, and the app pauses jobs while any remain). Redeploy after merging to main; the app restarts the jobs when `jobs.json` changes. Leave `--prompts` off until the menu bar app shows prompts.
+- `uv run python -m dashboard [--port N] [--no-open]`: local read-only dashboard (timeline, labels, top apps/sites/titles, check-ins, live samples). Binds 127.0.0.1 only, needs the per-run token in the printed URL, checks the Host header, loads no external resources, and writes nothing.
 - Data: `~/Library/Application Support/metal-focus/activity.db` (SQLCipher; override the dir with `METAL_FOCUS_HOME`). The key lives in Keychain (service `metal-focus`, account `sqlcipher-key`). If the DB exists but the key is gone, writers refuse to mint a new key; readers use `data.db.open_existing()`, which never creates a DB or key.
 - **Privacy, set by the user (2026-11-13):** no keyboard or mouse hooks of any kind (no event taps, no global monitors, no Input Monitoring permission). Typing/click/scroll come only from macOS's "seconds since last event" timers, stored as 0/1 per-sample flags; `tests/logger/test_cli.py::test_no_input_hooks_in_source` guards this. Financial sites and apps are excluded automatically via `logger/financial.yaml` (always on). Extra exclusions and IBM repo title patterns go in `logger/config.local.yaml` (gitignored). Private/incognito windows store no title or domain; Safari can't report private windows, so Safari titles and domains are dropped unless `unknown_private_policy: keep`.
 
@@ -31,7 +33,8 @@ Python is managed **only by uv**: a uv-managed CPython 3.13 is pinned in `.pytho
 - `uv run python -m labels.checkins run`: check-in scheduler loop (writes `checkins` + `notify_outbox`; the Swift app shows prompts and writes responses).
 - `uv run python -m labels.tune suggest` / `apply KEY=V ...`: weekly threshold suggestions from train-split check-ins (needs 30+); `apply` is the user's approval step and logs to `labels/tuning_log.csv`.
 - `baselines/rules.RulesBaseline`: the auto-labeler rules run live, implementing `common.model_api.LiveModel` (compare against the HSMM).
-- `tests/fixtures/sample_cases.json`: golden privacy/sample-assembly cases for the Swift sampler; regenerate with `uv run python -m tests.fixtures.sample_cases` after changing logger rules.
+- Schema v2 added `samples.media_playing`; every opener runs `data.db.migrate` (Swift: `Database.migrate`), and both keep the same `ADDED_COLUMNS` list.
+- `tests/fixtures/sample_cases.json` and `media_cases.json`: golden privacy/sample-assembly and video-detection cases for the Swift sampler; regenerate with `uv run python -m tests.fixtures.sample_cases` after changing logger rules.
 
 ## Framework decision: MLX everywhere
 All model code (HSMM now, GRU/hybrid later) is written in **MLX** so the GRU port is the same framework, with shared array code, no NumPy/MLX conversion at the boundary, and one set of tests/utilities.
@@ -64,6 +67,7 @@ The **HSMM is the primary model** and gets built first. It has ~35 parameters, w
 - **Gray zone:** 10-20 min sessions with fewer than 3 apps stay unlabeled; the model decides them.
 - **Drifting:** the first few windows of a rabbit hole (lead-in). Target zone for nudges, before the 20-min mark.
 - **Away:** window with 90+ s idle, or laptop closed. Skip or label Away; never let it look like a rabbit hole.
+  Idle time while the frontmost app plays video (it holds a `PreventUserIdleDisplaySleep` power assertion; `samples.media_playing`, see `logger/media.py`) is watching, not idle, so passive video can't hide as Away.
 
 ## Auto-labeler (rules, not ML)
 Runs nightly in hindsight on categorized windows.

@@ -5,8 +5,9 @@
 
 Each tick loads today's completed windows (data.windows.load_day), steps the
 LiveHSMM over the ones not seen yet, and writes one row per window to the
-`readouts` table. The menu bar bridge reads the latest row; nudge/ can read
-the same rows. A new local day resets the model (each day is one sequence,
+`readouts` table; nudge/ consumes the new rows via the on_rows hook (below), and
+the menu bar app and dashboard read the table directly.
+A new local day resets the model (each day is one sequence,
 matching training). After a process restart, or when windowing rebuilds a day
 (e.g. a categorizer rule change), the day is replayed from its first window and
 its rows are rewritten, so the belief is identical to a continuous run.
@@ -159,18 +160,6 @@ def _fingerprint(w: Any) -> tuple:
     )
 
 
-def latest_readout(conn, model: str = MODEL_NAME) -> dict | None:
-    """What the bridge reads: the most recent row, readout JSON decoded."""
-    row = conn.execute(
-        "SELECT window_start, day, written_at, readout FROM readouts WHERE model = ? "
-        "ORDER BY window_start DESC LIMIT 1",
-        (model,),
-    ).fetchone()
-    if row is None:
-        return None
-    return {"window_start": row[0], "day": row[1], "written_at": row[2], **json.loads(row[3])}
-
-
 class _CantRun(Exception):
     """DB missing / key missing / wrong key: wait and retry."""
 
@@ -182,6 +171,9 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--interval", type=float, default=30.0, help="seconds between ticks")
     ap.add_argument("--no-nudge", action="store_true", help="don't run the nudge engine hook")
     args = ap.parse_args(argv)
+    from common.supervised import exit_with_parent
+
+    exit_with_parent()
 
     if args.command in ("install", "uninstall"):
         from hsmm import launchd

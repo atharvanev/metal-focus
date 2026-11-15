@@ -13,17 +13,17 @@ from __future__ import annotations
 import math
 import time
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable
 
-from labels.categorizer import Rules, categorize, load_rules
+from labels.categorizer import Rules, categorize, is_escalating, load_rules
 
 WINDOW_S = 120
 AWAY_IDLE_S = 90  # spec: a window with 90+ s idle is Away
 MIN_COVERED_S = 60  # less than this much logged time in a window (lid closed, logger down) -> Away
 LOCKED_AWAY_S = 60  # screen locked for most of the window -> Away
-_SAMPLE_COLS = ("ts", "tz_offset_min", "dt", "bundle_id", "window_title", "domain", "excluded", "locked",
+_SAMPLE_COLS = ("ts", "tz_offset_min", "dt", "bundle_id", "window_title", "domain", "excluded", "locked", "media_playing",
                 "idle_s", "app_switches", "key_active", "click_active", "scroll_active")
 
 
@@ -42,6 +42,7 @@ class Window:
     scroll_frac: float | None
     dominant: str | None  # domain (browsers) or bundle id that won the category; None if excluded/empty
     low_confidence: bool  # categorizer unsure about the dominant app/site (ambiguous-app trigger)
+    media_frac: float | None = None  # fraction of measured samples with video playing in the frontmost app
 
 
 def _local_index(ts: float, tz_min: int) -> int:
@@ -59,7 +60,9 @@ def _frac(values: list[Any]) -> float | None:
 
 def _summarize(index: int, tz: int, rows: list[dict], rules: Rules) -> Window:
     covered = min(WINDOW_S, sum(r["dt"] for r in rows))
-    idle = min(WINDOW_S, sum(min(r["dt"], r["idle_s"]) for r in rows if r["idle_s"] is not None))
+    # Idle time while the frontmost app keeps the display awake (video playing) is watching, not Away.
+    idle = min(WINDOW_S, sum(min(r["dt"], r["idle_s"]) for r in rows
+                             if r["idle_s"] is not None and r.get("media_playing") != 1))
     locked = sum(r["dt"] for r in rows if r["locked"])
     by_cat: dict[tuple[str, bool, str | None], float] = defaultdict(float)
     for r in rows:
@@ -90,6 +93,7 @@ def _summarize(index: int, tz: int, rows: list[dict], rules: Rules) -> Window:
         scroll_frac=_frac([r["scroll_active"] for r in rows]),
         dominant=dominant,
         low_confidence=low,
+        media_frac=_frac([r.get("media_playing") for r in rows]),
     )
 
 
@@ -113,6 +117,23 @@ def build_windows(samples: Iterable[dict], day: str, now: float, rules: Rules) -
         if idx * WINDOW_S - tz * 60 + WINDOW_S > now:
             break  # not completed yet
         out.append(_summarize(idx, tz, buckets.get(idx, []), rules))
+    return _escalate(out, rules)
+
+
+def _escalate(windows: list[Window], rules: Rules) -> list[Window]:
+    """Long stretches on an escalating app (Spotify) become a distraction category.
+
+    The after_windows-th and later consecutive non-Away Other windows dominated by an escalating
+    app get ``rules.escalate_category``. Backward-looking only, so live and nightly agree.
+    """
+    if rules.escalate_category is None or rules.escalate_after <= 0:
+        return windows
+    run = 0
+    out: list[Window] = []
+    for w in windows:
+        run = run + 1 if (not w.is_away and w.category == "Other" and is_escalating(w.dominant, rules)) else 0
+        out.append(replace(w, category=rules.escalate_category, low_confidence=False)
+                   if run >= rules.escalate_after else w)
     return out
 
 

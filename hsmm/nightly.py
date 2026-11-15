@@ -1,6 +1,6 @@
 """Nightly HSMM update on the last 2-4 weeks of completed days.
 
-    uv run python -m hsmm.nightly [--days-back 28] [--min-days 3] [--dry-run]
+    uv run python -m hsmm.nightly [--days-back 28] [--min-days 3] [--dry-run] [--force]
 
 - Days: completed local days before today (today is never trained on).
 - Inputs: data.windows.load_day + labels.merge.load_training_labels (eval-split
@@ -24,6 +24,7 @@ from pathlib import Path
 
 import mlx.core as mx
 
+import data.db as db
 from hsmm.params import HSMMParams
 
 
@@ -105,22 +106,24 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--days-back", type=int, default=28)
     ap.add_argument("--min-days", type=int, default=3)
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--force", action="store_true", help="run even if today's update is already saved")
     args = ap.parse_args(argv)
-    try:
-        import data.db as db  # type: ignore[import-not-found]
+    from common.supervised import exit_with_parent
 
+    exit_with_parent()
+    # Today's params are the prior for the update, so a second run the same day would count the
+    # same evidence twice. The dated history copy marks the day as done.
+    done = history_dir() / f"{date.today().isoformat()}.json"
+    if done.exists() and not args.force and not args.dry_run:
+        print(json.dumps({"status": "skipped", "reason": f"already ran today ({done.name})"}))
+        return 0
+    try:
         conn = db.open_existing()
-    except ImportError as e:
-        print(f"hsmm.nightly: can't run yet ({e})", file=sys.stderr)
-        return 1
     except Exception as e:  # FileNotFoundError / KeyMissingError / WrongKeyError
         print(f"hsmm.nightly: can't open DB ({type(e).__name__}: {e})", file=sys.stderr)
         return 1
     try:
         summary = run_nightly(conn, date.today(), args.days_back, args.min_days, dry_run=args.dry_run)
-    except ImportError as e:  # labels.merge not merged yet
-        print(f"hsmm.nightly: can't run yet ({e})", file=sys.stderr)
-        return 1
     finally:
         conn.close()
     print(json.dumps(summary))

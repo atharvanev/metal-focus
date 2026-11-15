@@ -1,0 +1,28 @@
+{
+  "_doc": "Cases for frontmost_plays_media (logger/media.py) shared with the Swift port. front_pid=100, front bundle /Applications/Google Chrome.app; paths maps pid -> executable path.",
+  "front_pid": 100,
+  "front_bundle_path": "/Applications/Google Chrome.app",
+  "paths": {
+    "100": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "101": "/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/1/Helpers/Google Chrome Helper.app/Contents/MacOS/Google Chrome Helper",
+    "200": "/usr/bin/caffeinate",
+    "300": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU",
+    "400": "/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary"
+  },
+  "cases": [
+    {"name": "no_assertions", "assertions": [], "expected": false},
+    {"name": "front_app_video", "assertions": [{"AssertPID": 100, "AssertType": "PreventUserIdleDisplaySleep"}], "expected": true},
+    {"name": "helper_inside_bundle", "assertions": [{"AssertPID": 101, "AssertType": "PreventUserIdleDisplaySleep"}], "expected": true},
+    {"name": "true_type_wins_over_legacy_name", "assertions": [{"AssertPID": 100, "AssertType": "NoDisplaySleepAssertion", "AssertionTrueType": "PreventUserIdleDisplaySleep"}], "expected": true},
+    {"name": "legacy_name_only", "assertions": [{"AssertPID": 100, "AssertType": "NoDisplaySleepAssertion"}], "expected": true},
+    {"name": "on_behalf_of_front", "assertions": [{"AssertPID": 300, "AssertType": "PreventUserIdleDisplaySleep", "AssertionOnBehalfOfPID": 100}], "expected": true},
+    {"name": "webkit_for_other_app", "assertions": [{"AssertPID": 300, "AssertType": "PreventUserIdleDisplaySleep", "AssertionOnBehalfOfPID": 999}], "expected": false},
+    {"name": "audio_only_system_sleep", "assertions": [{"AssertPID": 100, "AssertType": "PreventUserIdleSystemSleep"}], "expected": false},
+    {"name": "caffeinate_not_front", "assertions": [{"AssertPID": 200, "AssertType": "PreventUserIdleDisplaySleep"}], "expected": false},
+    {"name": "similar_bundle_name_not_inside", "assertions": [{"AssertPID": 400, "AssertType": "PreventUserIdleDisplaySleep"}], "expected": false},
+    {"name": "unknown_path", "assertions": [{"AssertPID": 555, "AssertType": "PreventUserIdleDisplaySleep"}], "expected": false},
+    {"name": "missing_pid", "assertions": [{"AssertType": "PreventUserIdleDisplaySleep"}], "expected": false},
+    {"name": "internal_display_assertion_ignored", "assertions": [{"AssertPID": 100, "AssertType": "InternalPreventDisplaySleep"}], "expected": false},
+    {"name": "one_of_many", "assertions": [{"AssertPID": 200, "AssertType": "PreventUserIdleSystemSleep"}, {"AssertPID": 101, "AssertType": "PreventUserIdleDisplaySleep"}], "expected": true}
+  ]
+}

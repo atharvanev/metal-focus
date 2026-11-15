@@ -21,6 +21,7 @@ class Probes(Protocol):
     def idle_seconds(self) -> float | None: ...
     def input_recency(self) -> InputRecency | None: ...
     def screen_locked(self) -> bool: ...
+    def media_playing(self, app: AppInfo) -> bool | None: ...
 
 
 class SampleSink(Protocol):
@@ -71,9 +72,10 @@ class Sampler:
         p = self.probes
         locked = bool(self._safe("screen_locked", p.screen_locked, default=False))
         app = self._safe("frontmost", p.frontmost)
-        window = browser = None
+        window = browser = media = None
         if not locked and app is not None:
             window = self._safe("window", p.window, app.pid)
+            media = self._safe("media_playing", p.media_playing, app)
             if app.bundle_id in self.cfg.browsers:
                 browser = self._safe("browser", p.browser, app.bundle_id)
 
@@ -89,6 +91,7 @@ class Sampler:
             locked=locked,
             app_switches=self.switches.snapshot_and_reset(),
             cfg=self.cfg,
+            media_playing=media,
         )
         self.sink.write_sample(sample)
         return sample

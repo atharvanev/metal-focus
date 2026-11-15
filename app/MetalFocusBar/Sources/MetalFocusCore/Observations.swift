@@ -41,6 +41,8 @@ public struct Sample: Sendable, Equatable {
     public var isPrivate: Int?, excluded: Int, fullscreen: Int?, locked: Int
     public var idleS: Double?, appSwitches: Int
     public var keyActive: Int?, clickActive: Int?, scrollActive: Int?
+    /// 1 = the frontmost app holds a display-sleep assertion (video playing). Schema v2.
+    public var mediaPlaying: Int? = nil
 
     /// (column name, value) pairs in `samples` column order (data/schema.sql).
     public var columns: [(String, SQLValue)] {
@@ -49,6 +51,7 @@ public struct Sample: Sendable, Equatable {
          ("domain", SQLValue(domain)), ("private", SQLValue(isPrivate)), ("excluded", SQLValue(excluded)),
          ("fullscreen", SQLValue(fullscreen)), ("locked", SQLValue(locked)), ("idle_s", SQLValue(idleS)),
          ("app_switches", SQLValue(appSwitches)), ("key_active", SQLValue(keyActive)),
-         ("click_active", SQLValue(clickActive)), ("scroll_active", SQLValue(scrollActive))]
+         ("click_active", SQLValue(clickActive)), ("scroll_active", SQLValue(scrollActive)),
+         ("media_playing", SQLValue(mediaPlaying))]
     }
 }

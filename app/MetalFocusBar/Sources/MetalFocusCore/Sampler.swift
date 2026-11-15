@@ -9,6 +9,8 @@ public protocol Probes: Sendable {
     func browser(bundleId: String) throws -> BrowserInfo?
     func idleSeconds() throws -> Double?
     func inputRecency() throws -> InputRecency?
+    /// Is the frontmost app playing video (display-sleep power assertion)? See MediaPlayback.
+    func mediaPlaying(app: AppInfo) throws -> Bool?
 }
 
 public protocol SampleSink: Sendable {
@@ -36,7 +38,7 @@ public actor Sampler {
 
     struct Observed: Sendable {
         var locked = false, app: AppInfo?, window: WindowInfo?, browser: BrowserInfo?
-        var idle: Double?, recency: InputRecency?, failed: [String] = []
+        var idle: Double?, recency: InputRecency?, media: Bool?, failed: [String] = []
     }
 
     /// Probe order: locked first (skip window/browser when locked), frontmost, window, browser (only for
@@ -50,6 +52,7 @@ public actor Sampler {
         o.app = safe("frontmost") { try p.frontmost() }
         if !o.locked, let app = o.app {
             o.window = safe("window") { try p.window(pid: app.pid) }
+            o.media = safe("media_playing") { try p.mediaPlaying(app: app) }
             if let bid = app.bundleId, browsers[bid] != nil { o.browser = safe("browser") { try p.browser(bundleId: bid) } }
         }
         o.idle = safe("idle_seconds") { try p.idleSeconds() }
@@ -84,7 +87,8 @@ public actor Sampler {
         }
         let sample = SampleBuilder.build(
             ts: now, tzOffsetMin: tzOffset(), dt: dt, app: o.app, window: o.window, browser: o.browser,
-            idleS: o.idle, recency: o.recency, locked: o.locked, appSwitches: switches.snapshotAndReset(), cfg: cfg)
+            idleS: o.idle, recency: o.recency, locked: o.locked, appSwitches: switches.snapshotAndReset(), cfg: cfg,
+            mediaPlaying: o.media)
         do { try await sink.write(sample: sample) } catch { samplerLog.error("failed to write sample: \(error)") }
         return sample
     }

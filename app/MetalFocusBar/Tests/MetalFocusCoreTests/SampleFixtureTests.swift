@@ -12,7 +12,7 @@ import Testing
         struct Browser: Decodable { let url: String?; let `private`: Bool? }
         struct Recency: Decodable { let key_s: Double?; let click_s: Double?; let scroll_s: Double? }
         let app: App?; let window: Win?; let browser: Browser?; let recency: Recency?
-        let locked: Bool; let idle_s: Double?; let app_switches: Int; let dt: Double
+        let locked: Bool; let idle_s: Double?; let app_switches: Int; let dt: Double; let media_playing: Bool?
     }
     enum JSONScalar: Decodable, Equatable {
         case null, number(Double), string(String)
@@ -37,7 +37,7 @@ import Testing
         let url = TestRepo.root.appendingPathComponent("tests/fixtures/sample_cases.json")
         let fx = try JSONDecoder().decode(Fixture.self, from: Data(contentsOf: url))
         let cfg = try LoggerConfig.load(repo: TestRepo.root, includeLocal: false)
-        #expect(fx.cases.count >= 28)
+        #expect(fx.cases.count >= 32)
         for c in fx.cases {
             let i = c.inputs
             let s = SampleBuilder.build(
@@ -47,7 +47,7 @@ import Testing
                 browser: i.browser.map { BrowserInfo(url: $0.url, isPrivate: $0.private) },
                 idleS: i.idle_s,
                 recency: i.recency.map { InputRecency(keyS: $0.key_s, clickS: $0.click_s, scrollS: $0.scroll_s) },
-                locked: i.locked, appSwitches: i.app_switches, cfg: cfg)
+                locked: i.locked, appSwitches: i.app_switches, cfg: cfg, mediaPlaying: i.media_playing)
             let cols = Dictionary(uniqueKeysWithValues: s.columns)
             for (key, want) in c.expected {
                 let got = cols[key].map(Self.scalar)

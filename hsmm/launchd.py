@@ -63,6 +63,11 @@ def _domain() -> str:
 
 
 def install() -> None:
+    raise SystemExit("hsmm.runner install is replaced by `uv run python -m jobs deploy` (runs a pinned copy "
+                     "of main outside ~/Documents, so Python needs no Documents permission)")
+
+
+def _legacy_install() -> None:  # kept for reference; jobs.deploy supersedes it
     from common.paths import data_dir
 
     if is_worktree():
@@ -85,6 +90,9 @@ def install() -> None:
 
 
 def uninstall() -> None:
+    from jobs.deploy import uninstall as jobs_uninstall
+
+    jobs_uninstall()
     for label in (RUNNER_LABEL, NIGHTLY_LABEL):
         subprocess.run(["launchctl", "bootout", f"{_domain()}/{label}"], capture_output=True)
         (AGENTS_DIR / f"{label}.plist").unlink(missing_ok=True)
