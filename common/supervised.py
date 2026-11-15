@@ -9,7 +9,6 @@ app launch would start a second runner / check-in scheduler next to the orphan.
 from __future__ import annotations
 
 import os
-import sys
 import threading
 
 
@@ -20,7 +19,9 @@ def exit_with_parent() -> None:
 
     def wait() -> None:
         try:
-            while sys.stdin.buffer.read(4096):
+            # raw fd, not sys.stdin: a thread parked in BufferedReader.read holds its lock and
+            # makes interpreter shutdown abort ("could not acquire lock for <stdin>") on normal exit
+            while os.read(0, 4096):
                 pass
         except (OSError, ValueError):
             pass
