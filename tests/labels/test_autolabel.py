@@ -97,3 +97,23 @@ def test_session_ended_by_neutral_is_not_a_return_to_work(cfg):
 
 def test_thresholds_come_from_config(cfg):
     assert lab("W" + "D" * 6 + "W", replace(cfg, BREAK_MAX=6)) == "W" + "S" * 6 + "W"
+
+
+def _spotify_run(pattern: str) -> list[Window]:
+    """S = Spotify window still neutral (Other), X = Spotify window escalated to Social."""
+    base = wins(pattern.replace("S", "N").replace("X", "D"))
+    return [replace(w, dominant="com.spotify.client", category="Social" if ch == "X" else w.category)
+            if ch in "SX" else w for w, ch in zip(base, pattern)]
+
+
+def test_escalated_spotify_lead_in_counts_as_distraction(cfg):
+    # 4 min work, 8 min YouTube, 12 min Spotify (first 2 windows still Other), back to work:
+    # one 10-window session -> Drifting then Rabbit hole, not a Short break.
+    ws = _spotify_run("WW" + "DDDD" + "SSXXXX" + "WW")
+    short = {"Working": "W", "Short break": "S", "Drifting": "d", "Rabbit hole": "R", None: "."}
+    assert "".join(short[x] for x in auto_label(ws, cfg)) == "WW" + "ddd" + "R" * 7 + "WW"
+
+
+def test_spotify_that_never_escalates_stays_neutral(cfg):
+    ws = _spotify_run("WW" + "SS" + "WW")
+    assert auto_label(ws, cfg)[2:4] == [None, None]

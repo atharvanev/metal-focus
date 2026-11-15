@@ -1,5 +1,6 @@
 # Rules categorizer: app / site -> one of Coding, Docs, Chat, Video, Social (else Other).
-# Order: excluded -> lecture rule -> domain (suffix match) -> bundle id (exact, then prefix) -> Other.
+# Order: excluded -> lecture rule -> domain (suffix match) -> bundle id (exact, then prefix)
+#        -> neutral / escalate (Other, high confidence) -> Other (low confidence).
 # Low-confidence entries feed the "ambiguous app" check-in trigger. Personal additions go in
 # labels/categories.local.yaml (gitignored); its lists are appended to these.
 bundle_ids:
@@ -28,17 +29,31 @@ domains:
   Chat: [mail.google.com, outlook.office.com, outlook.live.com, slack.com, discord.com, messenger.com,
          web.whatsapp.com, teams.microsoft.com, meet.google.com, zoom.us, calendar.google.com]
   Video: [youtube.com, youtu.be, netflix.com, twitch.tv, hulu.com, disneyplus.com, primevideo.com,
-          max.com, vimeo.com, crunchyroll.com, spotify.com]
+          max.com, vimeo.com, crunchyroll.com]
   Social: [reddit.com, x.com, twitter.com, instagram.com, facebook.com, tiktok.com, linkedin.com,
            news.ycombinator.com, threads.net, bsky.app, tumblr.com, pinterest.com, 9gag.com, quora.com]
 # Matches here are flagged low-confidence (could be work or a rabbit hole).
 low_confidence:
   bundle_ids: [com.hnc.Discord]
   domains: [youtube.com, youtu.be, wikipedia.org, discord.com, medium.com, twitch.tv, linkedin.com,
-            news.ycombinator.com, spotify.com]
+            news.ycombinator.com]
 # YouTube etc. with lecture-like titles count as Docs (learning), high confidence.
 lecture:
   category: Docs
   domains: [youtube.com, youtu.be, vimeo.com]
   title_keywords: [lecture, tutorial, course, lesson, "crash course", explained, walkthrough, conference,
                    talk, seminar, workshop, mit, stanford, cs50, "how to", documentation, pycon, wwdc]
+# Neutral: neither work nor distraction (system apps, search). Categorized Other but high-confidence,
+# so they never trigger ambiguous-app check-ins. Checked only after the rules above miss
+# (docs.google.com stays Docs).
+neutral:
+  bundle_ids: [com.apple.SecurityAgent, com.apple.systempreferences, com.apple.ActivityMonitor,
+               com.metalfocus.menubar]
+  domains: [google.com]
+# Escalating: neutral (Other) per sample, but data/windows.py turns the after_windows-th and later
+# consecutive non-Away windows dominated by these into `category` (staying on Spotify = distraction).
+escalate:
+  category: Social
+  after_windows: 3
+  bundle_ids: [com.spotify.client]
+  domains: [spotify.com]

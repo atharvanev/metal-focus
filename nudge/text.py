@@ -10,32 +10,8 @@ from __future__ import annotations
 from collections import Counter
 from typing import Any, Sequence
 
-
-def work_categories(cfg: dict) -> tuple[str, ...]:
-    try:  # labels/ owns the canonical list
-        from labels.config import load_labels_config
-
-        return tuple(load_labels_config().work_categories)
-    except ImportError:
-        return tuple(cfg["work_categories"])
-
-
-def window_kinds(windows: Sequence[Any], cfg: dict) -> tuple[list[str], int]:
-    """('A'|'W'|'D'|'N' per window, GAP_OK), from labels/ so live nudges and hindsight
-    labels agree on session boundaries. Falls back to nudge/config.yaml."""
-    try:
-        from labels.autolabel import window_kinds as kinds_fn
-        from labels.config import load_labels_config
-
-        lc = load_labels_config()
-        return kinds_fn(windows, lc), lc.GAP_OK
-    except ImportError:
-        work, dist = tuple(cfg["work_categories"]), tuple(cfg["distraction_categories"])
-        kinds = [
-            "A" if getattr(w, "is_away", False) else "W" if w.category in work else "D" if w.category in dist else "N"
-            for w in windows
-        ]
-        return kinds, 1
+from labels.autolabel import window_kinds
+from labels.config import load_labels_config
 
 
 def session_start_index(kinds: Sequence[str], gap_ok: int = 1) -> int:
@@ -99,10 +75,10 @@ def hops(labels: Sequence[str], max_hops: int) -> list[str]:
 
 def build_body(conn, windows: Sequence[Any], cfg: dict) -> tuple[str, float]:
     """(message body, session start epoch s) for the session ending at windows[-1]."""
-    work = work_categories(cfg)
+    lc = load_labels_config()  # labels/ owns categories, so live nudges and hindsight labels agree on sessions
+    work = lc.work_categories
     ws = cfg["window_s"]
-    kinds, gap_ok = window_kinds(windows, cfg)
-    s = session_start_index(kinds, gap_ok)
+    s = session_start_index(window_kinds(windows, lc), lc.GAP_OK)
     t0 = float(windows[s].window_start)
     t1 = float(windows[-1].window_start) + ws
     minutes = round((t1 - t0) / 60)

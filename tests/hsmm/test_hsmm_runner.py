@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import pytest
 
-from hsmm.runner import LiveRunner, latest_readout
+from hsmm.runner import LiveRunner
 
 
 @dataclass(frozen=True)
@@ -50,8 +50,9 @@ def test_writes_one_row_per_new_window_without_duplicates(conn):
     store.days["2026-11-13"] = _day(8)
     assert len(r.tick("2026-11-13")) == 3
     assert conn.execute("SELECT COUNT(*) FROM readouts").fetchone()[0] == 8
-    latest = latest_readout(conn)
-    assert latest["window_start"] == _day(8)[-1].window_start
+    ws, readout = conn.execute("SELECT window_start, readout FROM readouts ORDER BY window_start DESC LIMIT 1").fetchone()
+    latest = json.loads(readout)
+    assert ws == _day(8)[-1].window_start
     assert 0.0 <= latest["risk"] <= 1.0 and len(latest["p_state"]) == 4
 
 
@@ -102,7 +103,7 @@ def test_rebuilt_day_with_same_length_is_replayed_and_rows_rewritten(conn):
     fresh = LiveRunner(sqlite3.connect(":memory:"), store.load_day).tick("d")
     assert rows[-1]["readout"] == fresh[-1]["readout"]
     assert conn.execute("SELECT COUNT(*) FROM readouts").fetchone()[0] == 6
-    stored = latest_readout(conn)
+    stored = json.loads(conn.execute("SELECT readout FROM readouts ORDER BY window_start DESC LIMIT 1").fetchone()[0])
     assert stored["p_state"] == pytest.approx(json.loads(fresh[-1]["readout"])["p_state"])
 
 
