@@ -33,10 +33,9 @@ def test_install_refused_from_worktree(tmp_path):
     main = tmp_path / "main"
     (main / ".git").mkdir(parents=True)
     assert not launchd.is_worktree(main)
-    # this test suite itself runs in a worktree: install must refuse before touching launchctl
-    if launchd.is_worktree():
-        with pytest.raises(SystemExit, match="worktree"):
-            launchd.install()
+    # install is replaced by jobs.deploy and must never touch launchctl
+    with pytest.raises(SystemExit, match="jobs deploy"):
+        launchd.install()
 
 
 # ---------------------------------------------------------------- nightly
