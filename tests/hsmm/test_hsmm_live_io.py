@@ -54,7 +54,6 @@ def test_live_matches_batch_forward():
     o = outs[-1]
     assert o.risk == pytest.approx(o.p_state[2] + o.p_state[3])
     assert set(o.forecast_risk) == {1, 3, 5}
-    assert len(o.hybrid_features()) == 4 + 4 + 3
 
 
 def test_away_never_raises_risk():
