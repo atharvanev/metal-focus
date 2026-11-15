@@ -24,6 +24,7 @@ from pathlib import Path
 
 import mlx.core as mx
 
+import data.db as db
 from hsmm.params import HSMMParams
 
 
@@ -107,20 +108,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args(argv)
     try:
-        import data.db as db  # type: ignore[import-not-found]
-
         conn = db.open_existing()
-    except ImportError as e:
-        print(f"hsmm.nightly: can't run yet ({e})", file=sys.stderr)
-        return 1
     except Exception as e:  # FileNotFoundError / KeyMissingError / WrongKeyError
         print(f"hsmm.nightly: can't open DB ({type(e).__name__}: {e})", file=sys.stderr)
         return 1
     try:
         summary = run_nightly(conn, date.today(), args.days_back, args.min_days, dry_run=args.dry_run)
-    except ImportError as e:  # labels.merge not merged yet
-        print(f"hsmm.nightly: can't run yet ({e})", file=sys.stderr)
-        return 1
     finally:
         conn.close()
     print(json.dumps(summary))
