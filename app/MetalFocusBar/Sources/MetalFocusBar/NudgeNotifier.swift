@@ -10,7 +10,8 @@ import UserNotifications
     private let center: UNUserNotificationCenter? = Bundle.main.bundleIdentifier == nil ? nil : .current()
     private let onAnswer: @MainActor (Int64, NudgeAnswer) -> Void
     private var panels: [Int64: NudgePanel] = [:]
-    // ponytail: cached from the last authorization request; re-request to pick up a later change in Settings.
+    /// Kept current by `refreshAuthorization()` (called on every status refresh), so a change in
+    /// System Settings is picked up within seconds.
     private(set) var allowed = false
 
     init(onAnswer: @escaping @MainActor (Int64, NudgeAnswer) -> Void) {
@@ -26,6 +27,14 @@ import UserNotifications
     func requestAuthorization() async -> Bool {
         guard let center else { allowed = false; return false }
         allowed = (try? await center.requestAuthorization(options: [.alert])) ?? false
+        return allowed
+    }
+
+    /// Re-read the current permission without prompting.
+    func refreshAuthorization() async -> Bool {
+        guard let center else { allowed = false; return false }
+        let status = await center.notificationSettings().authorizationStatus
+        allowed = status == .authorized || status == .provisional
         return allowed
     }
 

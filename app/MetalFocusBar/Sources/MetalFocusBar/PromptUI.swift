@@ -19,6 +19,9 @@ import MetalFocusCore
 
     var notificationsAllowed: Bool { nudges.allowed }
 
+    /// Current permission, read live (never prompts).
+    func refreshNotificationAuthorization() async -> Bool { await nudges.refreshAuthorization() }
+
     func showCheckin(_ item: OutboxItem, deadline: Date) {
         closeCheckin()
         let panel = CheckinPanel(item: item, deadline: deadline, onAnswer: onCheckinAnswer)

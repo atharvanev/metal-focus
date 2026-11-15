@@ -114,7 +114,7 @@ final class AppModel {
         accessibility = Permissions.accessibility
         launchAtLogin = SystemStatus.launchAtLogin
         legacyLoggerAgent = SystemStatus.legacyLoggerAgentExists
-        notificationsAllowed = promptUI?.notificationsAllowed ?? false
+        if let ui = promptUI { notificationsAllowed = await ui.refreshNotificationAuthorization() }
         if let cfg {
             let running = SystemStatus.runningBrowsers(cfg)
             let checked = await Task.detached {
