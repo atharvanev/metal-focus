@@ -29,9 +29,20 @@ def drift_split(n: int, cfg: LabelsConfig) -> list[str]:
 
 
 def window_kinds(windows: Sequence[Window], cfg: LabelsConfig) -> list[str]:
-    """A = Away, W = work, D = distraction, N = neutral (Other/Excluded/anything else)."""
-    return ["A" if w.is_away else "W" if w.category in cfg.work_categories
+    """A = Away, W = work, D = distraction, N = neutral (Other/Excluded/anything else).
+
+    Hindsight: an Other window directly leading into a distraction window with the same dominant
+    app is that stretch's lead-in (data/windows.py escalates long Spotify runs only from the Nth
+    window on), so it counts as D too.
+    """
+    kind = ["A" if w.is_away else "W" if w.category in cfg.work_categories
             else "D" if w.category in cfg.distraction_categories else "N" for w in windows]
+    for t in range(len(windows) - 2, -1, -1):
+        dom = getattr(windows[t], "dominant", None)  # nudge/ passes duck-typed windows
+        if kind[t] == "N" and kind[t + 1] == "D" and windows[t].category == "Other" and dom \
+                and dom == getattr(windows[t + 1], "dominant", None):
+            kind[t] = "D"
+    return kind
 
 
 def auto_label(windows: Sequence[Window], cfg: LabelsConfig) -> list[str | None]:
