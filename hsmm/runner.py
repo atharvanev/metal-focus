@@ -5,7 +5,8 @@
 
 Each tick loads today's completed windows (data.windows.load_day), steps the
 LiveHSMM over the ones not seen yet, and writes one row per window to the
-`readouts` table; nudge/ consumes the new rows via the on_rows hook (below).
+`readouts` table; nudge/ consumes the new rows via the on_rows hook (below), and
+the menu bar app and dashboard read the table directly.
 A new local day resets the model (each day is one sequence,
 matching training). After a process restart, or when windowing rebuilds a day
 (e.g. a categorizer rule change), the day is replayed from its first window and

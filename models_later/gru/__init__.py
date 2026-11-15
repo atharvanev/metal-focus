@@ -3,7 +3,7 @@
 Contract (see common.model_api): implements LiveModel (reset, step(window) -> Readout)
 and TrainableModel (fit(days, labels)). Readout.risk = P(rabbit hole).
 
-Planned inputs per window (all from the logger's windows table):
+Planned inputs per window (from data.windows.load_day, computed from samples):
 - category (one-hot over hsmm/config.yaml categories, plus missing)
 - switch_count, idle_seconds, is_away
 - typing_frac, click_frac, scroll_frac (fraction of samples with activity, 0..1, may be NULL)
