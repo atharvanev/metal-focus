@@ -46,3 +46,14 @@ import Testing
         #expect(throws: ConfigError.self) { try LoggerConfig.load(repo: repo) }
     }
 }
+
+@Suite struct NudgeSettingsTests {
+    @Test func readsRepoThreshold() {
+        #expect(NudgeSettings.load(repo: TestRepo.root).riskThreshold == 0.6)
+    }
+
+    @Test func missingFileFallsBack() {
+        let empty = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        #expect(NudgeSettings.load(repo: empty) == .fallback)
+    }
+}
