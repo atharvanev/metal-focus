@@ -1,0 +1,8 @@
+# Strict nearest-neighbour category suggestions (labels/embed.py, used by `python -m labels.report`).
+# A suggestion is made only when the best category's score >= min_score AND beats the runner-up by
+# >= min_margin; otherwise the key stays unknown. Scores are cosine similarities (0..1 in practice).
+model: mlx-community/all-MiniLM-L6-v2-bf16   # ~22M params, 384-d; downloaded once, then loaded offline
+k: 5                        # neighbours that vote
+min_score: 0.40
+min_margin: 0.10
+max_refs_per_category: 200  # rule-labelled examples per category, most time first
