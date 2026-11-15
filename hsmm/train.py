@@ -129,13 +129,3 @@ def fit_em(params: HSMMParams, batch: Batch, n_iter: int = 50, tol: float = 1e-3
             if len(hist) > 1 and abs(hist[-1] - hist[-2]) < tol:
                 break
     return params, hist
-
-
-def fit_em_restarts(inits: list[HSMMParams], batch: Batch, n_iter: int = 50):
-    """Several restarts for unsupervised EM; keeps the highest log-likelihood."""
-    best = None
-    for p0 in inits:
-        p, hist = fit_em(p0, batch, n_iter)
-        if best is None or hist[-1] > best[1][-1]:
-            best = (p, hist)
-    return best
