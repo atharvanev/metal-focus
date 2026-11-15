@@ -7,11 +7,11 @@ import SwiftUI
     private static var window: NSWindow?
     private static var model: ViewerModel?
 
-    static func show(store: Store) {
+    static func show(store: Store, riskThreshold: Double) {
         let win = window ?? makeWindow()
         if win.contentViewController == nil {
             // Fresh hosting controller per opening; it is dropped on close so the auto-refresh task ends.
-            let m = model ?? ViewerModel(store: store)
+            let m = model ?? ViewerModel(store: store, riskThreshold: riskThreshold)
             model = m
             let host = NSHostingController(rootView: ViewerView(model: m))
             host.sceneBridgingOptions = [.toolbars]
@@ -25,11 +25,11 @@ import SwiftUI
     }
 
     private static func makeWindow() -> NSWindow {
-        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 900, height: 600),
+        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 920, height: 720),
                            styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
-        win.title = "Metal Rabbit — Viewer"
+        win.title = "Metal Rabbit"
         win.isReleasedWhenClosed = false
-        win.minSize = NSSize(width: 600, height: 400)
+        win.minSize = NSSize(width: 640, height: 480)
         win.center()
         NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: win, queue: .main) { _ in
             MainActor.assumeIsolated { window?.contentViewController = nil }
