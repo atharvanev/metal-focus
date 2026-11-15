@@ -1,5 +1,5 @@
-// TEMPORARY: stand-ins for PromptUI (app-presenter) and ViewerWindow (app-viewer), so this branch builds
-// on its own. Deleted when those branches are merged.
+// TEMPORARY: stand-in for PromptUI (app-presenter), so this branch builds
+// on its own. Deleted when that branch is merged.
 import AppKit
 import MetalFocusCore
 
@@ -13,4 +13,3 @@ import MetalFocusCore
     func closeNudge(outboxId: Int64) {}
 }
 
-@MainActor enum ViewerWindow { static func show(store: Store) {} }
