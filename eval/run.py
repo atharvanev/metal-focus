@@ -1,4 +1,4 @@
-"""Held-out-week evaluation: HSMM vs HMM baseline (vs rules baseline when available).
+"""Held-out-week evaluation: HSMM vs HMM and rules baselines.
 
     uv run python -m eval.run --eval-start 2026-12-01 --eval-end 2026-12-07 [--train-days 28]
 
@@ -25,6 +25,7 @@ from dataclasses import asdict
 from datetime import date, timedelta
 from typing import Any, Callable, Sequence
 
+from baselines.rules import RulesBaseline
 from eval.metrics import checkin_truth, grade_episodes, grade_nudges
 from hsmm.config import load_config
 from nudge.rule import Point, replay
@@ -111,13 +112,8 @@ def build_models(train_obs, eval_obs, hcfg: dict) -> dict[str, dict]:
     models = {
         "hsmm": {"live": lambda: LiveHSMM(hsmm_p, hcfg), "loglik": hsmm_ll, "params": hsmm_p},
         "hmm": {"live": lambda: LiveHMM(hmm_p, hcfg), "loglik": hmm_ll, "params": hmm_p},
+        "rules": {"live": RulesBaseline},  # the auto-labeler's rules run live
     }
-    try:  # rules baseline (metal-focus-d1): the auto-labeler's rules run live, LiveModel
-        from baselines.rules import RulesBaseline
-
-        models["rules"] = {"live": RulesBaseline}
-    except ImportError:
-        pass
     return models
 
 

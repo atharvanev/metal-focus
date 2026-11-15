@@ -5,9 +5,11 @@ from dataclasses import dataclass
 import pytest
 
 from hsmm.runner import LiveRunner
+from labels.autolabel import window_kinds
+from labels.config import load_labels_config
 from nudge.engine import is_holdout, on_tick
 from nudge.rule import Point, load_config, replay, should_fire
-from nudge.text import build_body, hops, session_start_index, window_kinds
+from nudge.text import build_body, hops, session_start_index
 
 # Exact DDL from metal-focus-87 (bridge/schema.sql). Test fixture only: nudge/ never creates these.
 BRIDGE_DDL = """
@@ -27,6 +29,7 @@ CREATE TABLE samples (id INTEGER PRIMARY KEY, ts REAL NOT NULL, app_name TEXT, d
 """
 
 CFG = {**load_config(), "holdout_frac": 0.0}
+LC = load_labels_config()
 T0 = 1_000_000.0
 
 
@@ -63,8 +66,7 @@ def test_rule_cooldown_ten_windows():
 
 def _start(cats_or_windows):
     ws = [w if isinstance(w, W) else W(i, w, 0) for i, w in enumerate(cats_or_windows)]
-    kinds, gap_ok = window_kinds(ws, CFG)
-    return session_start_index(kinds, gap_ok)
+    return session_start_index(window_kinds(ws, LC), LC.GAP_OK)
 
 
 def test_session_start_allows_one_window_blip():
@@ -87,17 +89,12 @@ def test_away_ends_the_session():
 
 def test_live_session_start_matches_hindsight_autolabel():
     """Live nudges and the auto-labeler must agree on where a session starts."""
-    from labels.autolabel import window_kinds as lk
-    from labels.config import load_labels_config
-
     cats = ["Coding", "Video", "Other", "Social", "Coding", "Coding", "Excluded", "Video", "Chat", "Docs", "Video"]
     ws = [W(i, c, 0) for i, c in enumerate(cats)]
-    lc = load_labels_config()
-    assert window_kinds(ws, CFG)[0] == lk(ws, lc)
     for end in range(1, len(ws) + 1):
-        kinds = lk(ws[:end], lc)
+        kinds = window_kinds(ws[:end], LC)
         if kinds[-1] == "D":
-            s = session_start_index(kinds, lc.GAP_OK)
+            s = session_start_index(kinds, LC.GAP_OK)
             assert kinds[s] == "D" and all(k != "A" for k in kinds[s:end])
 
 
