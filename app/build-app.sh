@@ -29,10 +29,11 @@ cp "$REPO/app/Assets/rabbit-logo-mono.svg" "$OUT/Contents/Resources/MenuBarIcon.
 # Bundle the config and schema so the app never reads the repo at runtime (the repo is under
 # ~/Documents, which would need a Documents-folder permission). Rebuild after changing them.
 CFG="$OUT/Contents/Resources/repo"
-mkdir -p "$CFG/logger" "$CFG/data"
+mkdir -p "$CFG/logger" "$CFG/data" "$CFG/nudge"
 cp "$REPO/logger/config.yaml" "$REPO/logger/financial.yaml" "$CFG/logger/"
 [[ -f "$REPO/logger/config.local.yaml" ]] && cp "$REPO/logger/config.local.yaml" "$CFG/logger/"
 cp "$REPO/data/schema.sql" "$CFG/data/"
+cp "$REPO/nudge/config.yaml" "$CFG/nudge/"  # risk threshold for the popover meter
 plutil -lint "$OUT/Contents/Info.plist" >/dev/null
 # Sign inside-out: the embedded framework, then the app.
 codesign --force --timestamp=none -s "$IDENTITY" "$OUT/Contents/Frameworks/SQLCipher.framework"

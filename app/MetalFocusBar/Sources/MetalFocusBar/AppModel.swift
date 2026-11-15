@@ -19,6 +19,9 @@ final class AppModel {
     var browsers: [(id: String, name: String, automation: SystemStatus.Automation)] = []
     var legacyLoggerAgent = SystemStatus.legacyLoggerAgentExists
     var promptError: String?
+    // Popover-only: today's app strip (refreshed while the popover is open) and the risk meter's tick.
+    var today: [Segment] = []
+    var nudge = NudgeSettings.fallback
 
     @ObservationIgnored private var sampler: Sampler?
     @ObservationIgnored private var observer: WorkspaceObserver?
@@ -47,6 +50,7 @@ final class AppModel {
             let cfg = try LoggerConfig.load(repo: repo)
             let store = try Store.open(repo: repo, runningThresholdS: 3 * cfg.sampleIntervalS)
             self.cfg = cfg; self.store = store
+            nudge = NudgeSettings.load(repo: repo)
             startSampling(cfg: cfg, store: store)
             startPrompts(store: store)
         } catch {
@@ -121,6 +125,15 @@ final class AppModel {
                 running.map { (id: $0.0, name: $0.1, automation: SystemStatus.automation(bundleId: $0.0)) }
             }.value
             browsers = checked
+        }
+    }
+
+    /// Runs while the popover is open (driven by its `.task`): today's segments every 30 s.
+    /// Kept out of the always-on prompt loop because it scans all of today's samples.
+    func refreshTodayWhileVisible() async {
+        while !Task.isCancelled {
+            if let store, let segs = try? await store.timeline(day: Date()), segs != today { today = segs }
+            try? await Task.sleep(for: .seconds(30))
         }
     }
 
