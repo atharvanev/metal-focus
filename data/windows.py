@@ -13,11 +13,11 @@ from __future__ import annotations
 import math
 import time
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable
 
-from labels.categorizer import Rules, categorize, load_rules
+from labels.categorizer import Rules, categorize, is_escalating, load_rules
 
 WINDOW_S = 120
 AWAY_IDLE_S = 90  # spec: a window with 90+ s idle is Away
@@ -117,6 +117,23 @@ def build_windows(samples: Iterable[dict], day: str, now: float, rules: Rules) -
         if idx * WINDOW_S - tz * 60 + WINDOW_S > now:
             break  # not completed yet
         out.append(_summarize(idx, tz, buckets.get(idx, []), rules))
+    return _escalate(out, rules)
+
+
+def _escalate(windows: list[Window], rules: Rules) -> list[Window]:
+    """Long stretches on an escalating app (Spotify) become a distraction category.
+
+    The after_windows-th and later consecutive non-Away Other windows dominated by an escalating
+    app get ``rules.escalate_category``. Backward-looking only, so live and nightly agree.
+    """
+    if rules.escalate_category is None or rules.escalate_after <= 0:
+        return windows
+    run = 0
+    out: list[Window] = []
+    for w in windows:
+        run = run + 1 if (not w.is_away and w.category == "Other" and is_escalating(w.dominant, rules)) else 0
+        out.append(replace(w, category=rules.escalate_category, low_confidence=False)
+                   if run >= rules.escalate_after else w)
     return out
 
 

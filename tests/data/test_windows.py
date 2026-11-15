@@ -170,3 +170,44 @@ def test_locked_with_media_is_still_away(rules):
     rows = _with_media(fill(NOON, 30, idle_s=200.0, key=0, locked=1), None)
     [w] = build(rows, rules)
     assert w.is_away
+
+
+SPOT = dict(bundle_id="com.spotify.client", title="Song")
+WEB_SPOT = dict(bundle_id="com.google.Chrome", domain="open.spotify.com", title="Song")
+IDLE = dict(bundle_id="com.spotify.client", title="Song", idle_s=120)
+CODE: dict = {}
+EXCL = dict(bundle_id=None, title=None, excluded=1)
+
+
+def run(kinds, rules):
+    """One full window (30 samples x 4 s) per entry of `kinds`, back to back from NOON."""
+    samples = [x for i, kw in enumerate(kinds) for x in fill(NOON + i * WINDOW_S, 30, **kw)]
+    return build(samples, rules)
+
+
+def test_spotify_escalates_from_third_window(rules):
+    ws = run([SPOT] * 5, rules)
+    assert [w.category for w in ws] == ["Other", "Other", "Social", "Social", "Social"]
+    assert all(not w.low_confidence and w.dominant == "com.spotify.client" for w in ws)
+
+
+def test_spotify_web_counts(rules):
+    assert [w.category for w in run([WEB_SPOT] * 3, rules)] == ["Other", "Other", "Social"]
+
+
+def test_away_resets_spotify_run(rules):
+    ws = run([SPOT, SPOT, IDLE, SPOT, SPOT], rules)
+    assert ws[2].is_away and "Social" not in [w.category for w in ws]
+
+
+def test_other_category_window_resets_run(rules):
+    ws = run([SPOT, SPOT, CODE, SPOT, SPOT], rules)
+    assert [w.category for w in ws] == ["Other", "Other", "Coding", "Other", "Other"]
+
+
+def test_short_spotify_stays_neutral(rules):
+    assert [w.category for w in run([SPOT] * 2, rules)] == ["Other", "Other"]
+
+
+def test_excluded_never_escalates(rules):
+    assert [w.category for w in run([EXCL] * 3, rules)] == ["Excluded"] * 3
