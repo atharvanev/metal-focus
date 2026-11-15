@@ -5,8 +5,8 @@
 
 Each tick loads today's completed windows (data.windows.load_day), steps the
 LiveHSMM over the ones not seen yet, and writes one row per window to the
-`readouts` table. The menu bar bridge reads the latest row; nudge/ can read
-the same rows. A new local day resets the model (each day is one sequence,
+`readouts` table; nudge/ consumes the new rows via the on_rows hook (below).
+A new local day resets the model (each day is one sequence,
 matching training). After a process restart, or when windowing rebuilds a day
 (e.g. a categorizer rule change), the day is replayed from its first window and
 its rows are rewritten, so the belief is identical to a continuous run.
@@ -157,18 +157,6 @@ def _fingerprint(w: Any) -> tuple:
         getattr(w, "switch_count", None),
         bool(getattr(w, "is_away", False)),
     )
-
-
-def latest_readout(conn, model: str = MODEL_NAME) -> dict | None:
-    """What the bridge reads: the most recent row, readout JSON decoded."""
-    row = conn.execute(
-        "SELECT window_start, day, written_at, readout FROM readouts WHERE model = ? "
-        "ORDER BY window_start DESC LIMIT 1",
-        (model,),
-    ).fetchone()
-    if row is None:
-        return None
-    return {"window_start": row[0], "day": row[1], "written_at": row[2], **json.loads(row[3])}
 
 
 class _CantRun(Exception):
