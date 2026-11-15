@@ -18,6 +18,7 @@ final class AppModel {
     var launchAtLogin = SystemStatus.launchAtLogin
     var browsers: [(id: String, name: String, automation: SystemStatus.Automation)] = []
     var legacyLoggerAgent = SystemStatus.legacyLoggerAgentExists
+    var jobProblem: String?
     var promptError: String?
     // Popover-only: today's app strip (refreshed while the popover is open) and the risk meter's tick.
     var today: [Segment] = []
@@ -30,6 +31,8 @@ final class AppModel {
     @ObservationIgnored private var promptUI: PromptUI?
     @ObservationIgnored private var pump: PromptPump?
     @ObservationIgnored private var promptLoop: Task<Void, Never>?
+    @ObservationIgnored private let jobs = JobSupervisor()
+    @ObservationIgnored private var jobLoop: Task<Void, Never>?
 
     /// Config (logger/*.yaml) and schema (data/schema.sql), copied from the repo into the bundle by
     /// app/build-app.sh, so the app needs no access to ~/Documents. The `MFRepoPath` default (a repo
@@ -42,6 +45,7 @@ final class AppModel {
     }
 
     func start() {
+        startJobs()
         guard let repo = Self.repoURL else {
             startupError = "Bundled config missing: rebuild with app/build-app.sh."
             return
@@ -77,6 +81,19 @@ final class AppModel {
                 next = next.advanced(by: .seconds(cfg.sampleIntervalS))
                 if next < clock.now { next = clock.now.advanced(by: .seconds(cfg.sampleIntervalS)) }
                 try? await clock.sleep(until: next)
+            }
+        }
+    }
+
+    /// The background jobs (HSMM runner, nightly, check-ins) run as children of the app; see JobSupervisor.
+    /// They wait and retry on their own when the DB or key isn't ready, so they start regardless.
+    private func startJobs() {
+        jobLoop = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self else { return }
+                self.jobs.tick()
+                if self.jobs.problem != self.jobProblem { self.jobProblem = self.jobs.problem }
+                try? await Task.sleep(for: .seconds(5))
             }
         }
     }
@@ -160,6 +177,8 @@ final class AppModel {
         promptLoop?.cancel()
         loop?.cancel()
         observer?.stop()
+        jobLoop?.cancel()
+        jobs.stopAll()
         guard let store else { return }
         let done = DispatchSemaphore(value: 0)
         Task.detached {

@@ -171,6 +171,9 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--interval", type=float, default=30.0, help="seconds between ticks")
     ap.add_argument("--no-nudge", action="store_true", help="don't run the nudge engine hook")
     args = ap.parse_args(argv)
+    from common.supervised import exit_with_parent
+
+    exit_with_parent()
 
     if args.command in ("install", "uninstall"):
         from hsmm import launchd

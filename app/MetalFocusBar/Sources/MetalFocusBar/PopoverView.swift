@@ -17,7 +17,13 @@ struct PopoverView: View {
                 TodayModule(segments: model.today, status: model.status)
             }
             if !model.accessibility { PermissionBanner() }
-            if model.legacyLoggerAgent { LegacyAgentBanner() }
+            if model.legacyLoggerAgent {
+                LegacyAgentBanner(title: "Old logger still installed",
+                                  detail: "The v1 LaunchAgent would write duplicate samples. Remove ~/Library/LaunchAgents/com.metalfocus.logger.plist.")
+            }
+            if let problem = model.jobProblem {
+                LegacyAgentBanner(title: "Background jobs paused", detail: problem)
+            }
             SettingsModule(model: model)
             Footer()
         }
@@ -286,12 +292,14 @@ private struct PermissionBanner: View {
 }
 
 private struct LegacyAgentBanner: View {
+    let title: String
+    let detail: String
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange).font(.title3)
             VStack(alignment: .leading, spacing: 2) {
-                Text("Old logger still installed").font(.body.weight(.semibold))
-                Text("The v1 LaunchAgent would write duplicate samples. Remove ~/Library/LaunchAgents/com.metalfocus.logger.plist.")
+                Text(title).font(.body.weight(.semibold))
+                Text(detail)
                     .font(.callout).foregroundStyle(.secondary)
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)

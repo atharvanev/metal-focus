@@ -1,5 +1,5 @@
+import json
 import os
-import plistlib
 import subprocess
 import time
 from pathlib import Path
@@ -7,29 +7,38 @@ from pathlib import Path
 from jobs import deploy as d
 
 
-def test_agents_without_prompts_skip_nudges_and_checkins():
-    a = {x.label: x for x in d.agents(prompts=False)}
-    assert set(a) == {d.RUNNER, d.NIGHTLY}
-    assert a[d.RUNNER].args == ("hsmm.runner", "run", "--no-nudge")
+def test_jobs_without_prompts_skip_nudges_and_checkins():
+    j = {x.name: x for x in d.jobs(prompts=False)}
+    assert set(j) == {d.RUNNER, d.NIGHTLY}
+    assert j[d.RUNNER].args == ("hsmm.runner", "run", "--no-nudge")
 
 
-def test_agents_with_prompts():
-    a = {x.label: x for x in d.agents(prompts=True)}
-    assert set(a) == {d.RUNNER, d.NIGHTLY, d.CHECKINS}
-    assert "--no-nudge" not in a[d.RUNNER].args
-    assert a[d.CHECKINS].args == ("labels.checkins", "run")
+def test_jobs_with_prompts():
+    j = {x.name: x for x in d.jobs(prompts=True)}
+    assert set(j) == {d.RUNNER, d.NIGHTLY, d.CHECKINS}
+    assert "--no-nudge" not in j[d.RUNNER].args
+    assert j[d.CHECKINS].args == ("labels.checkins", "run")
 
 
-def test_render_plist(tmp_path):
-    py, cwd = tmp_path / "rt/current/.venv/bin/python", tmp_path / "rt/current"
-    runner, nightly = d.agents(False)
-    p = plistlib.loads(d.render_plist(runner, py, cwd, tmp_path, {"METAL_FOCUS_HOME": "/x"}))
-    assert p["ProgramArguments"] == [str(py), "-m", "hsmm.runner", "run", "--no-nudge"]
-    assert p["WorkingDirectory"] == str(cwd) and p["KeepAlive"] == {"SuccessfulExit": False} and p["RunAtLoad"]
-    assert p["EnvironmentVariables"] == {"PYTHONUNBUFFERED": "1", "METAL_FOCUS_HOME": "/x"}
-    assert p["StandardErrorPath"] == str(tmp_path / "hsmm-runner.err.log")
-    n = plistlib.loads(d.render_plist(nightly, py, cwd, tmp_path))
-    assert n["StartCalendarInterval"] == {"Hour": 3, "Minute": 30} and "KeepAlive" not in n
+def test_render_manifest():
+    # Shape is a contract with app/.../JobManifest.swift.
+    m = json.loads(d.render_manifest("abc", d.jobs(False)))
+    assert m == {"sha": "abc", "jobs": [
+        {"name": "hsmm-runner", "args": ["hsmm.runner", "run", "--no-nudge"], "keepalive": True},
+        {"name": "hsmm-nightly", "args": ["hsmm.nightly"], "keepalive": False, "daily": {"hour": 3, "minute": 30}},
+    ]}
+
+
+def test_remove_legacy_agents(tmp_path, monkeypatch):
+    monkeypatch.setattr(d, "agents_dir", lambda: tmp_path)
+    calls = []
+    monkeypatch.setattr(d.subprocess, "run", lambda args, **kw: calls.append(args))
+    (tmp_path / "com.metalfocus.hsmm-runner.plist").write_text("x")
+    (tmp_path / "com.metalfocus.logger.plist").write_text("x")  # not ours to remove here
+    assert d.remove_legacy_agents() == ["com.metalfocus.hsmm-runner"]
+    assert not (tmp_path / "com.metalfocus.hsmm-runner.plist").exists()
+    assert (tmp_path / "com.metalfocus.logger.plist").exists()
+    assert all(c[:2] == ["launchctl", "bootout"] for c in calls) and len(calls) == 3
 
 
 def _repo(tmp_path):

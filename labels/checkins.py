@@ -340,6 +340,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("command", choices=["run", "once"])
     p.add_argument("--interval", type=float, default=30.0)
     args = p.parse_args(argv)
+    from common.supervised import exit_with_parent
+
+    exit_with_parent()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     from data.db import KeyMissingError, WrongKeyError, open_existing
 
