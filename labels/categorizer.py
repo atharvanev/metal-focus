@@ -36,6 +36,12 @@ class Rules:
     lecture_category: str
     lecture_domains: tuple[str, ...]
     lecture_title: re.Pattern | None
+    neutral_bundle_ids: frozenset[str] = frozenset()
+    neutral_domains: tuple[str, ...] = ()
+    escalate_category: str | None = None
+    escalate_after: int = 0
+    escalate_bundle_ids: frozenset[str] = frozenset()
+    escalate_domains: tuple[str, ...] = ()
 
 
 def _merge(base: dict, local: dict, key: str) -> dict[str, list]:
@@ -56,6 +62,14 @@ def load_rules(path: Path | None = None, local_path: Path | None = None) -> Rule
                 raise ValueError(f"{key}: unknown category {cat!r}")
     low = {k: list((base.get("low_confidence") or {}).get(k) or []) + list((local.get("low_confidence") or {}).get(k) or [])
            for k in ("bundle_ids", "domains")}
+    def lists(key: str, sub: str) -> list[str]:
+        return [x for src in (base, local) for x in ((src.get(key) or {}).get(sub) or [])]
+
+    esc = {**(base.get("escalate") or {}), **{k: v for k, v in (local.get("escalate") or {}).items()
+                                              if k in ("category", "after_windows")}}
+    esc_cat = esc.get("category")
+    if esc_cat is not None and esc_cat not in CATEGORIES:
+        raise ValueError(f"escalate: unknown category {esc_cat!r}")
     lec = base.get("lecture") or {}
     kws = list(lec.get("title_keywords") or [])
     return Rules(
@@ -67,7 +81,20 @@ def load_rules(path: Path | None = None, local_path: Path | None = None) -> Rule
         lecture_category=lec.get("category", "Docs"),
         lecture_domains=tuple(lec.get("domains") or []),
         lecture_title=re.compile(r"(?<!\w)(?:" + "|".join(map(re.escape, kws)) + r")(?!\w)", re.I) if kws else None,
+        neutral_bundle_ids=frozenset(lists("neutral", "bundle_ids")),
+        neutral_domains=tuple(d.lower() for d in lists("neutral", "domains")),
+        escalate_category=esc_cat,
+        escalate_after=int(esc.get("after_windows") or 0),
+        escalate_bundle_ids=frozenset(lists("escalate", "bundle_ids")),
+        escalate_domains=tuple(d.lower() for d in lists("escalate", "domains")),
     )
+
+
+def is_escalating(dominant: str | None, rules: Rules) -> bool:
+    """True if a window's dominant app/site is on the escalate list (e.g. Spotify)."""
+    if not dominant:
+        return False
+    return dominant in rules.escalate_bundle_ids or any(domain_matches(dominant, d) for d in rules.escalate_domains)
 
 
 def categorize(
@@ -82,11 +109,14 @@ def categorize(
         for d, cat in rules.domains:
             if domain_matches(domain, d):
                 return Categorization(cat, any(domain_matches(domain, x) for x in rules.low_domains))
-        return Categorization("Other", True)
+        known = any(domain_matches(domain, d) for d in rules.neutral_domains + rules.escalate_domains)
+        return Categorization("Other", not known)
     if bundle_id:
         cat = rules.bundle_ids.get(bundle_id)
         if cat is None:
             cat = next((c for p, c in rules.bundle_prefixes if bundle_id.startswith(p)), None)
         if cat is not None:
             return Categorization(cat, bundle_id in rules.low_bundle_ids)
+        if bundle_id in rules.neutral_bundle_ids or bundle_id in rules.escalate_bundle_ids:
+            return Categorization("Other", False)
     return Categorization("Other", True)
