@@ -18,6 +18,7 @@ struct PopoverView: View {
         }
         .scrollBounceBehavior(.basedOnSize)
         .frame(width: 340, height: min(contentHeight, maxHeight))
+        .background(WindowHeight(height: min(contentHeight, maxHeight)))
         .task { await model.refreshStatus() }
         .task { await model.refreshTodayWhileVisible() }
     }
@@ -46,6 +47,28 @@ struct PopoverView: View {
         }
         .padding(12)
         .frame(width: 340)
+    }
+}
+
+/// Sets the menu bar window's height to the popover's. The MenuBarExtra window grows with its content
+/// but doesn't shrink back (closing Settings left blank space), so size it directly, keeping the top edge
+/// under the menu bar.
+private struct WindowHeight: NSViewRepresentable {
+    let height: CGFloat
+
+    func makeNSView(context: Context) -> NSView { NSView() }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        let height = height
+        DispatchQueue.main.async {  // the view joins its window after the first update
+            guard let win = view.window, let content = win.contentView else { return }
+            let target = height + (win.frame.height - content.frame.height)  // plus any window chrome
+            guard abs(win.frame.height - target) > 0.5 else { return }
+            var f = win.frame
+            f.origin.y += f.height - target
+            f.size.height = target
+            win.setFrame(f, display: true)
+        }
     }
 }
 
