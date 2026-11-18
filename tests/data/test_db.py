@@ -183,3 +183,20 @@ def test_v1_db_is_migrated_by_writers_and_readers(tmp_path):
     migrate(conn)  # idempotent
     init_schema(conn)
     assert [r[1] for r in conn.execute("PRAGMA table_info(samples)")].count("media_playing") == 1
+
+
+def test_migrate_rebuilds_checkins_to_allow_away_return(tmp_path):
+    from data.db import connect, migrate
+
+    conn = connect(tmp_path / "old.db", "e" * 64)
+    conn.execute("""CREATE TABLE checkins (
+      id INTEGER PRIMARY KEY, asked_at REAL NOT NULL,
+      trigger TEXT NOT NULL CHECK (trigger IN ('uncertain','gray_zone','ambiguous_app','random','daily_review')),
+      window_start REAL, window_end REAL, model_top_state TEXT, model_top_prob REAL,
+      response TEXT, responded_at REAL, split TEXT NOT NULL CHECK (split IN ('train','eval')))""")
+    conn.execute("INSERT INTO checkins (asked_at, trigger, response, split) VALUES (1, 'random', 'Away', 'eval')")
+    conn.commit()
+    migrate(conn)
+    migrate(conn)  # idempotent
+    conn.execute("INSERT INTO checkins (asked_at, trigger, split) VALUES (2, 'away_return', 'train')")
+    assert conn.execute("SELECT trigger, response FROM checkins ORDER BY id").fetchall() == [("random", "Away"), ("away_return", None)]

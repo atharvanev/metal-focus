@@ -25,6 +25,11 @@ checkins:
     top_prob_below: 0.55
     for_windows: 2
     sb_vs_drift_within: 0.15
+  away_return:                 # back from a long Away that followed a distraction (phone rabbit hole?)
+    min_away_windows: 8        # away 16+ min: shorter aways never ask
+    lead_windows: 2            # at least 4 min of distraction right before the away
+    within_windows: 3          # ask in the first 6 min after coming back, else skip it
+    question: "Away {minutes} min right after a distraction. Were you on your phone (Rabbit hole) or really away?"
   gray_zone_windows: [5, 10]   # session longer than 5 windows (10 min) and shorter than 10 (20 min)
   ambiguous_app_windows: 5     # first 10+ min of the day on a low-confidence app/site
   random_hours: [9, 22]        # local hours the random prompt is drawn from

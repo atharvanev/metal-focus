@@ -78,7 +78,7 @@ def connect(db_path: Path, key: str) -> sqlcipher3.Connection:
     return conn
 
 
-SCHEMA_VERSION = "2"
+SCHEMA_VERSION = "2"  # the checkins rebuild (_rebuild_checkins) is detected from the table, not the version
 # Columns added after v1, as (table, column, type). SQLite has no ADD COLUMN IF NOT EXISTS, so every
 # opener (Python here, the Swift app in Database.applySchema) adds missing ones. Keep both lists equal.
 ADDED_COLUMNS = (("samples", "media_playing", "INTEGER"),)
@@ -94,9 +94,34 @@ def migrate(conn: sqlcipher3.Connection) -> None:
             except sqlcipher3.OperationalError as e:
                 if "duplicate column" not in str(e):
                     raise
+    _rebuild_checkins(conn)
     if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='meta'").fetchone():
         conn.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', ?)", (SCHEMA_VERSION,))
     conn.commit()
+
+
+def _rebuild_checkins(conn: sqlcipher3.Connection) -> None:
+    """The checkins trigger CHECK gained 'away_return'. SQLite can't alter a CHECK, so copy the
+    table into one created from schema.sql. Only Python inserts check-ins, so the app needs no twin."""
+    def stale() -> bool:
+        row = conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='checkins'").fetchone()
+        return bool(row) and "'away_return'" not in row[0]
+
+    if not stale():
+        return
+    conn.commit()
+    conn.execute("BEGIN IMMEDIATE")  # other jobs may migrate at the same moment: re-check under the lock
+    try:
+        if stale():
+            ddl = re.search(r"CREATE TABLE IF NOT EXISTS checkins \(.*?\);", _SCHEMA.read_text(), re.S).group(0)
+            conn.execute("ALTER TABLE checkins RENAME TO checkins_v2")
+            conn.execute(ddl)
+            conn.execute("INSERT INTO checkins SELECT * FROM checkins_v2")
+            conn.execute("DROP TABLE checkins_v2")
+        conn.execute("COMMIT")
+    except BaseException:
+        conn.execute("ROLLBACK")
+        raise
 
 
 def init_schema(conn: sqlcipher3.Connection) -> None:

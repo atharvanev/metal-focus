@@ -42,6 +42,7 @@ class CheckinConfig:
     budget: Mapping[str, Any]
     uncertain: Mapping[str, Any]
     gray_zone_windows: tuple[int, int]
+    away_return: Mapping[str, Any]
     ambiguous_app_windows: int
     random_hours: tuple[int, int]
     suppress: Mapping[str, Any]
@@ -53,6 +54,7 @@ def load_checkin_config(path: Path | None = None) -> CheckinConfig:
     return CheckinConfig(
         question=d["question"], covers_windows=int(d["covers_windows"]), expires_s=float(d["expires_s"]),
         budget=d["budget"], uncertain=d["uncertain"], gray_zone_windows=tuple(d["gray_zone_windows"]),
+        away_return=d["away_return"],
         ambiguous_app_windows=int(d["ambiguous_app_windows"]), random_hours=tuple(d["random_hours"]),
         suppress=d["suppress"], labels=load_labels_config(path),
     )
@@ -66,6 +68,7 @@ class CheckinRequest:
     split: str
     model_top_state: str | None
     model_top_prob: float | None
+    question: str | None = None  # None -> cfg.question
 
 
 @dataclass(frozen=True)
@@ -200,6 +203,35 @@ def _ambiguous(ctx: Context, cfg: CheckinConfig, today: list[Mapping[str, Any]])
     return not any(h["trigger"] == "ambiguous_app" and _covered_key(ctx, h) == last.dominant for h in today)
 
 
+def _away_return(ctx: Context, cfg: CheckinConfig, history: Sequence[Mapping[str, Any]]) -> tuple[int, int] | None:
+    """(first lead-in index, last away index) when the user just came back from a long Away that
+    followed a distraction stretch and hasn't been asked about it; else None."""
+    from labels.autolabel import window_kinds
+
+    a = cfg.away_return
+    kind = window_kinds(ctx.windows, cfg.labels)
+    t = len(kind)
+    while t and kind[t - 1] != "A":  # windows since coming back
+        t -= 1
+    back = len(kind) - t
+    if not (1 <= back <= a["within_windows"]):
+        return None
+    away_end = t - 1
+    while t and kind[t - 1] == "A":
+        t -= 1
+    if away_end - t + 1 < a["min_away_windows"]:
+        return None
+    lead_end = t
+    while t and kind[t - 1] == "D":
+        t -= 1
+    if lead_end - t < a["lead_windows"]:
+        return None
+    start = ctx.windows[t].window_start
+    if any(h["trigger"] == "away_return" and h.get("window_start") == start for h in history):
+        return None
+    return t, away_end
+
+
 def decide(ctx: Context, cfg: CheckinConfig) -> CheckinRequest | None:
     if not ctx.windows or _suppressed(ctx, cfg):
         return None
@@ -212,10 +244,13 @@ def decide(ctx: Context, cfg: CheckinConfig) -> CheckinRequest | None:
     random_done = any(h["trigger"] == "random" for h in today)
     reserve = cfg.budget["random_per_day"] if (not random_done and limit > 1) else 0
     trigger = None
+    away = None
     if len(today) < limit - reserve:
         lo, hi = cfg.gray_zone_windows
         if _uncertain(ctx, cfg):
             trigger = "uncertain"
+        elif (away := _away_return(ctx, cfg, ctx.history)) is not None:
+            trigger = "away_return"
         elif lo < _open_session_length(ctx, cfg) < hi:  # passed 10 min, not yet 20
             trigger = "gray_zone"
         elif _ambiguous(ctx, cfg, today):
@@ -224,7 +259,7 @@ def decide(ctx: Context, cfg: CheckinConfig) -> CheckinRequest | None:
         trigger = "random"
     if trigger is None:
         return None
-    covered = ctx.windows[-cfg.covers_windows:]
+    covered = ctx.windows[away[0]:away[1] + 1] if away else ctx.windows[-cfg.covers_windows:]
     live = _live_readouts(ctx)
     top = live[-1] if live else None
     return CheckinRequest(
@@ -234,6 +269,8 @@ def decide(ctx: Context, cfg: CheckinConfig) -> CheckinRequest | None:
         split="eval" if trigger == "random" else "train",
         model_top_state=STATE_NAMES[top["top_state"]] if top else None,
         model_top_prob=top["top_prob"] if top else None,
+        question=cfg.away_return["question"].format(minutes=sum(w.is_away for w in covered) * WINDOW_S // 60)
+        if away else None,
     )
 
 
@@ -295,7 +332,7 @@ def ask(conn, req: CheckinRequest, now: float, cfg: CheckinConfig) -> int:
         conn.execute(
             "INSERT INTO notify_outbox (created_at, kind, ref_id, payload_json, delivered_at, expires_at) "
             "VALUES (?, 'checkin', ?, ?, NULL, ?)",
-            (now, cid, json.dumps({"question": cfg.question}), now + cfg.expires_s),
+            (now, cid, json.dumps({"question": req.question or cfg.question}), now + cfg.expires_s),
         )
         conn.commit()
     except Exception:
