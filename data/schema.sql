@@ -32,3 +32,7 @@ CREATE TABLE IF NOT EXISTS notify_outbox (
   id INTEGER PRIMARY KEY, created_at REAL NOT NULL,
   kind TEXT CHECK (kind IN ('checkin','nudge')), ref_id INTEGER,
   payload_json TEXT NOT NULL DEFAULT '{}', delivered_at REAL, expires_at REAL NOT NULL);
+-- The user's "Not working" switch (written by the app). Windows mostly inside a stretch are Away:
+-- no nudges, no check-ins, not trained on. ended_at NULL = still on.
+CREATE TABLE IF NOT EXISTS not_working (
+  id INTEGER PRIMARY KEY, started_at REAL NOT NULL, ended_at REAL);

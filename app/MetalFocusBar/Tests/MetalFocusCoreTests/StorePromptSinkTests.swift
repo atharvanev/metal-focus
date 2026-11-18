@@ -26,7 +26,7 @@ import Testing
         #expect(presenter.log.filter { $0.hasPrefix("show") }.count == 2)
     }
 
-    @Test func nudgeTimeoutWritesDismissed() async throws {
+    @Test func nudgeWaitsForTheUser() async throws {  // no timeout: only the user's answer is written
         let f = try StoreFixture()
         let nid = try f.nudge()
         _ = try f.outbox("nudge", nid, expiresAt: NOW + 20)
@@ -34,9 +34,11 @@ import Testing
         let clock = Clock()
         let coord = PromptCoordinator(presenter: FakePresenter(), sink: StorePromptSink(store: f.store), now: { clock.t })
         await PromptPump(store: f.store, coordinator: coord).pump()
-        clock.t = clock.t.addingTimeInterval(21)
+        clock.t = clock.t.addingTimeInterval(3600)
         await coord.tick()
+        #expect(try f.get("nudge_responses", nid)["response"] == .null)
+        await coord.userAnswered(nudge: coord.openNudgeIds[0], .dismissed)
         let row = try f.get("nudge_responses", nid)
-        #expect(row["response"] == .text("dismissed") && row["responded_at"] == .double(NOW + 20))
+        #expect(row["response"] == .text("dismissed") && row["responded_at"] == .double(NOW + 3600))
     }
 }

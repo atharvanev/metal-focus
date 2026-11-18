@@ -16,8 +16,9 @@ import Foundation
 }
 
 /// Prompt lifecycle: at most one check-in on screen (a newer one replaces it, the old one is dismissed),
-/// any number of nudges keyed by outbox id. Every prompt closes by min(shown + maxOnScreen, expires_at)
-/// as `dismissed` with responded_at = that deadline. A prompt already past expires_at is never shown.
+/// any number of nudges keyed by outbox id. A check-in closes by min(shown + maxOnScreen, expires_at)
+/// as `dismissed` with responded_at = that deadline; a nudge stays until answered or dismissed (user,
+/// 2026-11-17). A prompt already past expires_at is never shown.
 @MainActor public final class PromptCoordinator {
     let presenter: PromptPresenter, sink: PromptSink
     let now: () -> Date, maxOnScreen: TimeInterval
@@ -49,9 +50,9 @@ import Foundation
             await sink.ack(item)
             presenter.showCheckin(item, deadline: deadline)
         case .nudge:
-            nudges[item.outboxId] = (item, deadline)
+            nudges[item.outboxId] = (item, .distantFuture)
             await sink.ack(item)
-            presenter.showNudge(item, deadline: deadline)
+            presenter.showNudge(item, deadline: .distantFuture)
         }
     }
 

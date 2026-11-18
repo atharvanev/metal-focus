@@ -13,7 +13,8 @@ struct PopoverView: View {
                 ErrorModule(message: err)
             } else {
                 NowModule(sample: model.lastSample, accessibility: model.accessibility)
-                FocusModule(readout: model.readout, threshold: model.nudge.riskThreshold)
+                FocusModule(readout: model.readout, threshold: model.nudge.riskThreshold,
+                            notWorking: Binding(get: { model.notWorkingSince != nil }, set: { model.setNotWorking($0) }))
                 TodayModule(segments: model.today, status: model.status)
             }
             if !model.accessibility { PermissionBanner() }
@@ -129,6 +130,7 @@ private struct NowModule: View {
 private struct FocusModule: View {
     let readout: ReadoutInfo?
     let threshold: Double
+    @Binding var notWorking: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     static let states = ["Working", "Short break", "Drifting", "Rabbit hole"]  // hsmm/config.yaml order
@@ -136,7 +138,14 @@ private struct FocusModule: View {
 
     var body: some View {
         Module(title: "Focus") {
-            if let r = readout {
+            Toggle("Not working", isOn: $notWorking)
+                .toggleStyle(.switch).controlSize(.small)
+                .help("Leisure time: no nudges or check-ins, and the model doesn't learn from it")
+            if notWorking {
+                Text("Nudges and check-ins are paused, and this time isn't used for training.")
+                    .font(.callout).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if let r = readout {
                 live(r)
             } else {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {

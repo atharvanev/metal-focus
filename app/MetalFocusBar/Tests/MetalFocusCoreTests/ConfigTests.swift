@@ -49,7 +49,7 @@ import Testing
 
 @Suite struct NudgeSettingsTests {
     @Test func readsRepoThreshold() {
-        #expect(NudgeSettings.load(repo: TestRepo.root).riskThreshold == 0.6)
+        #expect(NudgeSettings.load(repo: TestRepo.root).riskThreshold == 0.5)
     }
 
     @Test func missingFileFallsBack() {

@@ -80,11 +80,11 @@ import Testing
         _ = try f.outbox("checkin", recent, expiresAt: NOW - 10, deliveredAt: NOW - 60)
         let nid = try f.nudge()
         _ = try f.outbox("nudge", nid, expiresAt: NOW - 40, deliveredAt: NOW - 90)
-        #expect(try await f.store.sweepExpired() == 2)
+        #expect(try await f.store.sweepExpired() == 1)  // check-ins only: nudges stay until answered
         #expect(try f.get("checkins", old)["response"] == .text("dismissed"))
         #expect(try f.get("checkins", old)["responded_at"] == .double(NOW - 31))
         #expect(try f.get("checkins", recent)["response"] == .null)
-        #expect(try f.get("nudge_responses", nid)["response"] == .text("dismissed"))
+        #expect(try f.get("nudge_responses", nid)["response"] == .null)
         #expect(try await f.store.sweepExpired() == 0)
     }
 

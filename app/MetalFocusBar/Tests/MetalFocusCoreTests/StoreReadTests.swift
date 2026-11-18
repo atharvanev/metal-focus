@@ -4,6 +4,17 @@ import Testing
 
 /// Port of tests/bridge/test_store_reads.py (commit ef19dd0).
 @Suite struct StoreReadTests {
+    @Test func notWorkingSwitch() async throws {
+        let f = try StoreFixture()
+        #expect(try await f.store.notWorkingSince() == nil)
+        try await f.store.setNotWorking(true)
+        try await f.store.setNotWorking(true)  // still one open stretch
+        #expect(try await f.store.notWorkingSince() != nil)
+        #expect(try f.db.query("SELECT count(*) AS n FROM not_working WHERE ended_at IS NULL").first?["n"] == .int(1))
+        try await f.store.setNotWorking(false)
+        #expect(try await f.store.notWorkingSince() == nil)
+    }
+
     @Test func checkinColumnsMatchSpec() throws {
         let f = try StoreFixture()
         let cols = try f.db.query("PRAGMA table_info(checkins)").compactMap { $0["name"]?.string }
