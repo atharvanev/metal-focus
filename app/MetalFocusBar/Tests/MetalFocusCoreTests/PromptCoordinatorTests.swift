@@ -101,13 +101,14 @@ import Testing
         #expect(sink.acks == [1] && c.currentCheckin == nil)
     }
 
-    @Test func nudgeTimeoutDismisses() async {
+    @Test func nudgeStaysUntilAnswered() async {  // user, 2026-11-17: nudges linger until taken away
         let c = make()
         await c.receive(nudge(5, expiresIn: 30))
-        clock.t = clock.t.addingTimeInterval(31)
+        clock.t = clock.t.addingTimeInterval(3600)
         await c.tick()
-        #expect(sink.nudges.map(\.1) == [.dismissed] && sink.nudges[0].2 == Date(timeIntervalSince1970: NOW + 30))
-        #expect(presenter.log == ["showNudge 5", "closeNudge 5"] && c.openNudgeIds.isEmpty)
+        #expect(sink.nudges.isEmpty && presenter.log == ["showNudge 5"] && c.openNudgeIds == [5])
+        await c.userAnswered(nudge: 5, .dismissed)
+        #expect(sink.nudges.map(\.1) == [.dismissed] && c.openNudgeIds.isEmpty)
     }
 
     @Test func nudgeAnswer() async {

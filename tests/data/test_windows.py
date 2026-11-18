@@ -223,3 +223,26 @@ def test_idle_stretch_from_previous_window_counts(rules):
     # untouched since before the window: the whole window is one idle stretch
     [w] = build(fill(NOON, 30, idle_s=500.0, key=0), rules)
     assert w.idle_seconds == pytest.approx(120, abs=0.01) and w.is_away
+
+
+def test_not_working_time_is_away(rules):
+    # the user's "Not working" switch: windows mostly inside it are Away (no nudges, check-ins or training)
+    rows = fill(NOON, 60)  # two active windows
+    ws = build_windows(rows, day=DAY, now=NOON + 10 * 3600, rules=rules, off=[(NOON + 100, None)])
+    assert [w.not_working for w in ws] == [False, True] and [w.is_away for w in ws] == [False, True]
+
+
+def test_load_day_reads_not_working(tmp_path, rules):
+    import dataclasses
+
+    from data.db import DbSink, connect, init_schema
+    from tests.data.test_db import FakeSample
+
+    conn = connect(tmp_path / "a.db", "d" * 64)
+    init_schema(conn)
+    sink = DbSink(conn)
+    for row in fill(NOON, 30):
+        sink.write_sample(FakeSample(**{k: row[k] for k in (f.name for f in dataclasses.fields(FakeSample))}))
+    conn.execute("INSERT INTO not_working (started_at, ended_at) VALUES (?, ?)", (NOON - 10, NOON + 200))
+    [w] = load_day(conn, DAY, now=NOON + 3600, rules=rules)
+    assert w.not_working and w.is_away

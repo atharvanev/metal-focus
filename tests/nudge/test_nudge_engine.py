@@ -51,7 +51,7 @@ def P(i, risk, away=False):
 def test_rule_needs_two_consecutive_non_away_above_threshold():
     assert not should_fire([P(0, 0.9)], None, CFG)
     assert should_fire([P(0, 0.9), P(1, 0.7)], None, CFG)
-    assert not should_fire([P(0, 0.9), P(1, 0.6)], None, CFG)  # strictly greater
+    assert not should_fire([P(0, 0.9), P(1, CFG["risk_threshold"])], None, CFG)  # strictly greater
     assert should_fire([P(0, 0.9), P(1, 0.1, away=True), P(2, 0.8)], None, CFG)  # away skipped
     assert not should_fire([P(0, 0.9), P(1, 0.9, away=True)], None, CFG)  # never on an away window
 
@@ -221,3 +221,13 @@ def test_holdout_is_deterministic_and_about_ten_percent():
     xs = [is_holdout(T0 + 120 * i, 0.1) for i in range(5000)]
     assert xs == [is_holdout(T0 + 120 * i, 0.1) for i in range(5000)]
     assert 0.08 < sum(xs) / len(xs) < 0.12
+
+
+def test_engine_skips_while_not_working_switch_is_on():
+    conn = _db()
+    conn.execute("CREATE TABLE not_working (id INTEGER PRIMARY KEY, started_at REAL NOT NULL, ended_at REAL)")
+    wins = _risky_day(8)
+    conn.execute("INSERT INTO not_working (started_at) VALUES (?)", (wins[-1].window_start + 100,))  # just switched on
+    res = _run(conn, wins, wins[-1].window_start + 130)
+    assert res == {"skipped": "not working"}
+    assert conn.execute("SELECT count(*) FROM notify_outbox").fetchone()[0] == 0

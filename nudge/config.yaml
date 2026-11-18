@@ -1,5 +1,5 @@
 # Nudge engine settings (CLAUDE.md "Nudge rule").
-risk_threshold: 0.6        # P(Drifting) + P(Rabbit hole)
+risk_threshold: 0.5        # P(Drifting) + P(Rabbit hole); user lowered from 0.6 (2026-11-17)
 consecutive_windows: 2     # non-away readouts in a row above the threshold
 cooldown_windows: 10       # after any decision (shown, holdout, or dismissed)
 holdout_frac: 0.1          # fraction of firings logged but not shown (un-nudged data)

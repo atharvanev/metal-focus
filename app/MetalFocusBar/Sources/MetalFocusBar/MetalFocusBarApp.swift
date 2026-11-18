@@ -31,7 +31,7 @@ struct MetalFocusBarApp: App {
             PopoverView(model: AppDelegate.model)
         } label: {
             if AppDelegate.model.startupError == nil {
-                Image(nsImage: MenuBarIcon.image)
+                Image(nsImage: MenuBarIcon.tinted(AppDelegate.model.menuBarTint))
             } else {
                 Image(systemName: "exclamationmark.triangle")
             }
@@ -51,4 +51,20 @@ enum MenuBarIcon {
         img.accessibilityDescription = "Metal Rabbit"
         return img
     }()
+
+    /// Same order and hues as the popover's state dots (FocusModule.stateColors).
+    static let stateColors: [NSColor] = [.systemGreen, .systemTeal, .systemOrange, .systemRed]
+
+    /// The logo filled with `color` (not a template, so the menu bar keeps the colour); nil -> plain logo.
+    @MainActor static func tinted(_ color: NSColor?) -> NSImage {
+        guard let color else { return image }
+        let img = NSImage(size: image.size, flipped: false) { rect in
+            image.draw(in: rect)
+            color.set()
+            rect.fill(using: .sourceAtop)
+            return true
+        }
+        img.accessibilityDescription = image.accessibilityDescription
+        return img
+    }
 }

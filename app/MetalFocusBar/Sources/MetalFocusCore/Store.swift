@@ -29,6 +29,18 @@ public actor Store: SampleSink {
     public func write(event ts: Double, kind: String, detail: String?) async throws {
         try db.run("INSERT INTO events (ts, kind, detail) VALUES (?, ?, ?)", [.double(ts), .text(kind), SQLValue(detail)])
     }
+
+    /// When the open "Not working" stretch started, or nil when the switch is off.
+    public func notWorkingSince() throws -> Double? {
+        try db.query("SELECT max(started_at) AS t FROM not_working WHERE ended_at IS NULL").first?["t"]?.double
+    }
+
+    /// Turn the "Not working" switch on (opens a stretch) or off (closes every open one).
+    public func setNotWorking(_ on: Bool) throws {
+        let t = now()
+        try db.run("UPDATE not_working SET ended_at = ? WHERE ended_at IS NULL", [.double(t)])
+        if on { try db.run("INSERT INTO not_working (started_at) VALUES (?)", [.double(t)]) }
+    }
 }
 
 // MARK: - Outbox relay, answers, sweep (port of the v1 bridge/store.py, commit ef19dd0)
@@ -91,7 +103,7 @@ extension Store {
         let cutoff = now() - graceS
         return try db.transaction {
             var n = 0
-            for kind in [PromptKind.checkin, .nudge] {
+            for kind in [PromptKind.checkin] {  // nudges stay open until answered, so never swept
                 let t = kind.table
                 n += try db.run("""
                     UPDATE \(t) SET response = 'dismissed',

@@ -14,6 +14,8 @@ final class AppModel {
     var accessibility = Permissions.accessibility
     var status: Status?
     var readout: ReadoutInfo?
+    /// Start of the open "Not working" stretch (the popover switch), nil when off.
+    var notWorkingSince: Double?
     var notificationsAllowed = false
     var launchAtLogin = SystemStatus.launchAtLogin
     var browsers: [(id: String, name: String, automation: SystemStatus.Automation)] = []
@@ -130,6 +132,7 @@ final class AppModel {
         do {
             status = try await store.status()
             readout = try await store.readout()
+            notWorkingSince = try await store.notWorkingSince()
             promptError = nil
         } catch { promptError = "\(error)" }
         accessibility = Permissions.accessibility
@@ -143,6 +146,22 @@ final class AppModel {
             }.value
             browsers = checked
         }
+    }
+
+    /// The "Not working" switch: that time gets no nudges or check-ins and isn't trained on.
+    func setNotWorking(_ on: Bool) {
+        guard let store else { return }
+        Task {
+            do { try await store.setNotWorking(on) } catch { promptError = "\(error)" }
+            await refreshStatus()
+        }
+    }
+
+    /// Menu bar icon colour: the live model's top state; plain while not working, away, unsure or stale.
+    var menuBarTint: NSColor? {
+        guard notWorkingSince == nil, let r = readout, r.away != true, let i = r.topState,
+              MenuBarIcon.stateColors.indices.contains(i) else { return nil }
+        return MenuBarIcon.stateColors[i]
     }
 
     /// Runs while the popover is open (driven by its `.task`): today's segments every 30 s.

@@ -307,6 +307,10 @@ def ask(conn, req: CheckinRequest, now: float, cfg: CheckinConfig) -> int:
 def tick(conn, now: float | None = None, cfg: CheckinConfig | None = None) -> CheckinRequest | None:
     cfg = cfg or load_checkin_config()
     now = time.time() if now is None else now
+    from data.windows import not_working_now
+
+    if not_working_now(conn):
+        return None
     req = decide(build_context(conn, now, cfg), cfg)
     if req is not None:
         cid = ask(conn, req, now, cfg)

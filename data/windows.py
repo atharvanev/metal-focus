@@ -15,7 +15,7 @@ import time
 from collections import defaultdict
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
-from typing import Any, Iterable
+from typing import Any, Iterable, Sequence
 
 from labels.categorizer import Rules, categorize, is_escalating, load_rules
 
@@ -23,6 +23,8 @@ WINDOW_S = 120
 AWAY_IDLE_S = 90  # spec: a window with 90+ s idle is Away
 MIN_COVERED_S = 60  # less than this much logged time in a window (lid closed, logger down) -> Away
 LOCKED_AWAY_S = 60  # screen locked for most of the window -> Away
+NOT_WORKING_S = 60  # "Not working" switch on for most of the window -> Away
+Off = tuple[float, "float | None"]  # a "Not working" stretch: (started_at, ended_at or None while on)
 _SAMPLE_COLS = ("ts", "tz_offset_min", "dt", "bundle_id", "window_title", "domain", "excluded", "locked", "media_playing",
                 "idle_s", "app_switches", "key_active", "click_active", "scroll_active")
 
@@ -43,6 +45,7 @@ class Window:
     dominant: str | None  # domain (browsers) or bundle id that won the category; None if excluded/empty
     low_confidence: bool  # categorizer unsure about the dominant app/site (ambiguous-app trigger)
     media_frac: float | None = None  # fraction of measured samples with video playing in the frontmost app
+    not_working: bool = False  # the user's "Not working" switch covered it (also is_away)
 
 
 def _local_index(ts: float, tz_min: int) -> int:
@@ -58,7 +61,7 @@ def _frac(values: list[Any]) -> float | None:
     return sum(measured) / len(measured) if measured else None
 
 
-def _summarize(index: int, tz: int, rows: list[dict], rules: Rules) -> Window:
+def _summarize(index: int, tz: int, rows: list[dict], rules: Rules, off: Sequence[Off] = ()) -> Window:
     covered = min(WINDOW_S, sum(r["dt"] for r in rows))
     # Longest unbroken stretch without input inside the window (idle_s = seconds since last input), not
     # a sum: summing every sample's gap counted the pauses between keystrokes and made typing look Away.
@@ -66,6 +69,8 @@ def _summarize(index: int, tz: int, rows: list[dict], rules: Rules) -> Window:
     # so a stretch can't start before the last video sample.
     idle = floor = 0.0
     start = index * WINDOW_S - tz * 60
+    not_working = sum(max(0.0, min(start + WINDOW_S, e if e is not None else math.inf) - max(start, b))
+                      for b, e in off) >= NOT_WORKING_S
     for r in rows:
         since_start = r["ts"] - start
         if r.get("media_playing") == 1:
@@ -97,7 +102,8 @@ def _summarize(index: int, tz: int, rows: list[dict], rules: Rules) -> Window:
         switch_count=sum(r["app_switches"] for r in rows),
         idle_seconds=idle,
         covered_seconds=covered,
-        is_away=idle >= AWAY_IDLE_S or covered < MIN_COVERED_S or locked >= LOCKED_AWAY_S,
+        is_away=idle >= AWAY_IDLE_S or covered < MIN_COVERED_S or locked >= LOCKED_AWAY_S or not_working,
+        not_working=not_working,
         typing_frac=_frac([r["key_active"] for r in rows]),
         click_frac=_frac([r["click_active"] for r in rows]),
         scroll_frac=_frac([r["scroll_active"] for r in rows]),
@@ -107,7 +113,7 @@ def _summarize(index: int, tz: int, rows: list[dict], rules: Rules) -> Window:
     )
 
 
-def build_windows(samples: Iterable[dict], day: str, now: float, rules: Rules) -> list[Window]:
+def build_windows(samples: Iterable[dict], day: str, now: float, rules: Rules, off: Sequence[Off] = ()) -> list[Window]:
     """Pure core of ``load_day``: samples (dicts with the ``samples`` columns) -> that day's windows."""
     buckets: dict[int, list[dict]] = defaultdict(list)
     tz_of: dict[int, int] = {}
@@ -126,7 +132,7 @@ def build_windows(samples: Iterable[dict], day: str, now: float, rules: Rules) -
         tz = tz_of.get(idx, tz)
         if idx * WINDOW_S - tz * 60 + WINDOW_S > now:
             break  # not completed yet
-        out.append(_summarize(idx, tz, buckets.get(idx, []), rules))
+        out.append(_summarize(idx, tz, buckets.get(idx, []), rules, off))
     return _escalate(out, rules)
 
 
@@ -147,6 +153,14 @@ def _escalate(windows: list[Window], rules: Rules) -> list[Window]:
     return out
 
 
+def not_working_now(conn) -> bool:
+    """The "Not working" switch is on right now (windows only reflect it once they complete)."""
+    try:
+        return conn.execute("SELECT 1 FROM not_working WHERE ended_at IS NULL LIMIT 1").fetchone() is not None
+    except Exception:  # table not created yet
+        return False
+
+
 def load_day(conn, day: str, now: float | None = None, rules: Rules | None = None) -> list[Window]:
     """Completed 2-minute windows for local day ``day`` (YYYY-MM-DD), computed from ``samples``."""
     d = datetime.strptime(day, "%Y-%m-%d").replace(tzinfo=timezone.utc)
@@ -154,4 +168,9 @@ def load_day(conn, day: str, now: float | None = None, rules: Rules | None = Non
     hi = (d + timedelta(days=1, hours=15)).timestamp()
     cur = conn.execute(f"SELECT {', '.join(_SAMPLE_COLS)} FROM samples WHERE ts >= ? AND ts < ? ORDER BY ts", (lo, hi))
     rows = [dict(zip(_SAMPLE_COLS, r)) for r in cur]
-    return build_windows(rows, day, time.time() if now is None else now, rules or load_rules())
+    try:
+        off = conn.execute("SELECT started_at, ended_at FROM not_working WHERE started_at < ? AND COALESCE(ended_at, ?) > ?",
+                           (hi, hi, lo)).fetchall()
+    except Exception:  # DB from before the table existed and opened read-only: no switch history
+        off = []
+    return build_windows(rows, day, time.time() if now is None else now, rules or load_rules(), off)

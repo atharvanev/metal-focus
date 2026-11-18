@@ -73,6 +73,10 @@ def on_tick(conn, day: str, rows: Sequence[dict], windows: Sequence[Any], now: f
     conn.executescript(NUDGE_LOG_SCHEMA)
     if _snoozed(conn, now, cfg):
         return {"skipped": "snoozed"}
+    from data.windows import not_working_now
+
+    if not_working_now(conn):
+        return {"skipped": "not working"}
 
     hist = [
         Point(r[0], json.loads(r[1])["risk"], bool(json.loads(r[1]).get("away")))

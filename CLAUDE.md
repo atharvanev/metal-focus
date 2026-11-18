@@ -18,7 +18,7 @@ Python is managed **only by uv**: a uv-managed CPython 3.13 is pinned in `.pytho
 
 ## Logger (v1, Python reference implementation)
 - **Permission policy (user, 2026-11-13):** macOS permissions (Accessibility etc.) belong only to the signed Swift app, never to Python. Do **not** recommend `python -m logger install`; the LaunchAgent was removed. The Python logger stays as the reference implementation of the sampling contract and as a test oracle.
-- **Contract the Swift sampler follows:** `data/schema.sql` (`samples`, `events`, plus the shared `checkins`, `nudge_responses`, `notify_outbox`), `logger/config.yaml` and `logger/financial.yaml` (exclusions), and the privacy semantics in `logger/sample.py:build_sample`. Announce any schema change to the app session first.
+- **Contract the Swift sampler follows:** `data/schema.sql` (`samples`, `events`, plus the shared `checkins`, `nudge_responses`, `notify_outbox`, `not_working`), `logger/config.yaml` and `logger/financial.yaml` (exclusions), and the privacy semantics in `logger/sample.py:build_sample`. Announce any schema change to the app session first.
 - `uv run python -m logger status`: sample count, last sample, recent events (read-only; never creates a key).
 - Background jobs: `uv run python -m jobs deploy [--prompts | --no-prompts]` (default keeps the last setting) / `status` / `uninstall`. Deploys the committed `main` tree to `<data dir>/runtime/<sha>` (outside ~/Documents, so no Documents permission) with its own `uv sync` and writes `runtime/jobs.json`. The menu bar app (the only login item) runs those jobs as child processes: the HSMM runner, nightly update (once a day after 03:30) and (with `--prompts`) the check-in scheduler + nudge engine. They are spawned with responsibility disclaimed (`app/.../JobSupervisor.swift`, private `responsibility_spawnattrs_setdisclaim`), so they hold none of the app's permissions; `SourceGuardTests` enforces this. There are no LaunchAgents (deploy removes the old `com.metalfocus.*` ones, and the app pauses jobs while any remain). Redeploy after merging to main; the app restarts the jobs when `jobs.json` changes. Leave `--prompts` off until the menu bar app shows prompts.
 - `uv run python -m dashboard [--port N] [--no-open]`: local read-only dashboard (timeline, labels, top apps/sites/titles, check-ins, live samples). Binds 127.0.0.1 only, needs the per-run token in the printed URL, checks the Host header, loads no external resources, and writes nothing.
@@ -66,7 +66,8 @@ The **HSMM is the primary model** and gets built first. It has ~35 parameters, w
 - **Rabbit hole:** session lasts 20+ min (10 windows) OR chains through 3+ distinct distraction apps/sites without returning to work. (Thresholds tunable.)
 - **Gray zone:** 10-20 min sessions with fewer than 3 apps stay unlabeled; the model decides them.
 - **Drifting:** the first few windows of a rabbit hole (lead-in). Target zone for nudges, before the 20-min mark.
-- **Away:** window with 90+ s idle, or laptop closed. Skip or label Away; never let it look like a rabbit hole.
+- **Away:** window with 90+ s idle (the longest unbroken stretch without input, not summed pauses), or laptop closed. Skip or label Away; never let it look like a rabbit hole.
+- **Not working:** the popover's "Not working" switch (table `not_working`, written by the app). Windows mostly inside it are Away (`Window.not_working`), and nudges and check-ins are skipped while it is on, so leisure time never trains the model or triggers prompts.
   Idle time while the frontmost app plays video (it holds a `PreventUserIdleDisplaySleep` power assertion; `samples.media_playing`, see `logger/media.py`) is watching, not idle, so passive video can't hide as Away.
 
 ## Auto-labeler (rules, not ML)
@@ -146,7 +147,7 @@ The app occasionally asks me directly which state I'm in. These are the highest-
 - Step 2 (evidence): multiply by B_j(o_t) * C_j(bin_t).
 - Step 3: normalize by c_t; keep log c_t (surprise, log-likelihood).
 - Outputs: P(state), expected minutes in state, P(Drifting)+P(Rabbit hole) "risk", forecast k windows ahead (step 1 only), surprise.
-- Nudge rule: risk > 0.6 for 2 consecutive windows, 10-window cooldown. Threshold tunable.
+- Nudge rule: risk > 0.5 for 2 consecutive windows, 10-window cooldown (user lowered it from 0.6 on 2026-11-17; `nudge/config.yaml`). Nudges stay on screen until answered or dismissed (no timeout; the app sets the Alerts notification style).
 
 **Nightly training:**
 - Forward pass + backward pass (beta) over each day; gamma = alpha * beta; xi for switches; n_j(d) for expected stretch lengths.
