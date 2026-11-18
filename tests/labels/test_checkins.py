@@ -153,3 +153,28 @@ def test_gray_zone_needs_more_than_ten_minutes():
 
 def test_gray_zone_ignores_excluded_stretch():
     assert decide(ctx("WD" + "N" * 6 + "D"), CFG) is None  # one window of distraction, not a 16-min session
+
+
+def test_away_return_asks_after_long_away_that_followed_a_distraction():
+    # drifted on Reddit, then 20 min away (phone?), now back: ask about the lead-in + the away stretch
+    req = decide(ctx("WW" + "DDD" + "A" * 10 + "W"), CFG)
+    assert req is not None and req.trigger == "away_return" and req.split == "train"
+    assert (req.window_start, req.window_end) == (NOON - 120 * 14, NOON - 120)
+    assert "20 min" in req.question
+
+
+@pytest.mark.parametrize("pattern", [
+    "WWDDD" + "A" * 3 + "W",       # short away: not every away gets a question
+    "WWWW" + "A" * 10 + "W",       # long away after work, not after a distraction
+    "WWD" + "A" * 10 + "W",        # one distraction window is not a lead-in
+    "WWDDD" + "A" * 10 + "WWWW",   # back for too long already
+])
+def test_away_return_not_asked(pattern):
+    req = decide(ctx(pattern), CFG)
+    assert req is None or req.trigger != "away_return"
+
+
+def test_away_return_asked_once_per_away():
+    lead = NOON - 120 * 14
+    req = decide(ctx("WW" + "DDD" + "A" * 10 + "W", history=[asked(NOON - 7200, "away_return", ws=lead, we=NOON)]), CFG)
+    assert req is None or req.trigger != "away_return"

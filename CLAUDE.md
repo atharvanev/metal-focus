@@ -104,7 +104,8 @@ The app occasionally asks me directly which state I'm in. These are the highest-
 1. **Uncertain:** the live HSMM's top state is below 55% for 2+ windows, or Short break vs Drifting are within 15 points of each other. This is active learning: ask where a label teaches the most.
 2. **Gray zone:** a distraction session has passed 10 min but not 20 (the auto-labeler can't decide these).
 3. **Ambiguous apps:** first 10+ min of the day on an app/site the categorizer marks low-confidence (e.g. YouTube without lecture keywords, Discord).
-4. **Random:** a small number of prompts at uniformly random times, regardless of model state. These are kept separate and used **only for evaluation**, so the eval set isn't biased toward the cases the model finds hard.
+4. **Away return** (after Uncertain in the code): back from 16+ min Away that followed 4+ min of distraction (e.g. a phone rabbit hole). Asked once per such away, within 6 min of returning; covers the lead-in plus the away stretch; short aways never ask (`labels/config.yaml` `away_return`).
+5. **Random:** a small number of prompts at uniformly random times, regardless of model state. These are kept separate and used **only for evaluation**, so the eval set isn't biased toward the cases the model finds hard.
 
 **When NOT to ask**
 - During a work stretch of 25+ min with steady typing (don't break real focus).
@@ -124,7 +125,7 @@ The app occasionally asks me directly which state I'm in. These are the highest-
 - Track auto-labeler agreement with check-ins per week; if it drops below ~80%, flag that the thresholds need retuning.
 
 **Storage (SQLite table `checkins`)**
-`id, asked_at, trigger (uncertain|gray_zone|ambiguous_app|random|daily_review), window_start, window_end, model_top_state, model_top_prob, response (state|skip|dismissed), responded_at, split (train|eval)`
+`id, asked_at, trigger (uncertain|gray_zone|ambiguous_app|random|daily_review|away_return), window_start, window_end, model_top_state, model_top_prob, response (state|skip|dismissed), responded_at, split (train|eval)`
 
 ## HSMM specification
 **States (K=4, +Away handling):** Working, Short break, Drifting, Rabbit hole.

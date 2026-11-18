@@ -20,7 +20,7 @@ INSERT OR IGNORE INTO meta (key, value) VALUES ('schema_version', '2');
 -- The Swift app opens the DB directly (no Python bridge); announce any change here to that session.
 CREATE TABLE IF NOT EXISTS checkins (
   id INTEGER PRIMARY KEY, asked_at REAL NOT NULL,
-  trigger TEXT NOT NULL CHECK (trigger IN ('uncertain','gray_zone','ambiguous_app','random','daily_review')),
+  trigger TEXT NOT NULL CHECK (trigger IN ('uncertain','gray_zone','ambiguous_app','random','daily_review','away_return')),
   window_start REAL, window_end REAL, model_top_state TEXT, model_top_prob REAL,
   response TEXT CHECK (response IS NULL OR response IN ('Working','Short break','Drifting','Rabbit hole','Away','skip','dismissed')),
   responded_at REAL, split TEXT NOT NULL CHECK (split IN ('train','eval')));
