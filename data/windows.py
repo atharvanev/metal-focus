@@ -60,9 +60,19 @@ def _frac(values: list[Any]) -> float | None:
 
 def _summarize(index: int, tz: int, rows: list[dict], rules: Rules) -> Window:
     covered = min(WINDOW_S, sum(r["dt"] for r in rows))
-    # Idle time while the frontmost app keeps the display awake (video playing) is watching, not Away.
-    idle = min(WINDOW_S, sum(min(r["dt"], r["idle_s"]) for r in rows
-                             if r["idle_s"] is not None and r.get("media_playing") != 1))
+    # Longest unbroken stretch without input inside the window (idle_s = seconds since last input), not
+    # a sum: summing every sample's gap counted the pauses between keystrokes and made typing look Away.
+    # Idle time while the frontmost app keeps the display awake (video playing) is watching, not Away,
+    # so a stretch can't start before the last video sample.
+    idle = floor = 0.0
+    start = index * WINDOW_S - tz * 60
+    for r in rows:
+        since_start = r["ts"] - start
+        if r.get("media_playing") == 1:
+            floor = since_start
+        elif r["idle_s"] is not None:
+            idle = max(idle, min(r["idle_s"], since_start - floor))
+    idle = min(WINDOW_S, idle)
     locked = sum(r["dt"] for r in rows if r["locked"])
     by_cat: dict[tuple[str, bool, str | None], float] = defaultdict(float)
     for r in rows:
