@@ -5,8 +5,24 @@ import SwiftUI
 /// and (one level down) permissions, prompt tests and launch at login.
 struct PopoverView: View {
     let model: AppModel
+    /// Height of the content; the popover never grows past the screen, it scrolls instead
+    /// (expanding Settings used to push the window off screen).
+    @State private var contentHeight: CGFloat = 480
+
+    private var maxHeight: CGFloat { (NSScreen.main?.visibleFrame.height ?? 800) - 40 }
 
     var body: some View {
+        ScrollView(.vertical) {
+            content
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .frame(width: 340, height: min(contentHeight, maxHeight))
+        .task { await model.refreshStatus() }
+        .task { await model.refreshTodayWhileVisible() }
+    }
+
+    private var content: some View {
         VStack(alignment: .leading, spacing: 10) {
             Header(model: model)
             if let err = model.startupError {
@@ -26,12 +42,10 @@ struct PopoverView: View {
                 LegacyAgentBanner(title: "Background jobs paused", detail: problem)
             }
             SettingsModule(model: model)
-            Footer()
+            Footer(model: model)
         }
         .padding(12)
         .frame(width: 340)
-        .task { await model.refreshStatus() }
-        .task { await model.refreshTodayWhileVisible() }
     }
 }
 
@@ -367,7 +381,6 @@ private struct SettingsModule: View {
                     }
                     Divider().padding(.vertical, 2)
                     VStack(spacing: 0) {
-                        action("Open viewer", "rectangle.split.3x1") { model.openViewer() }
                         action("Test check-in", "questionmark.bubble") { model.testPrompt(.checkin) }
                         action("Test nudge", "bell.badge") { model.testPrompt(.nudge) }
                     }
@@ -448,7 +461,18 @@ private struct ErrorModule: View {
 }
 
 private struct Footer: View {
+    let model: AppModel
+
     var body: some View {
+        Button { model.openViewer() } label: {
+            HStack {
+                Label("Open viewer", systemImage: "rectangle.split.3x1")
+                Spacer()
+            }
+            .font(.callout)
+        }
+        .buttonStyle(RowButtonStyle())
+        .disabled(model.store == nil)
         Button {
             NSApp.terminate(nil)
         } label: {
