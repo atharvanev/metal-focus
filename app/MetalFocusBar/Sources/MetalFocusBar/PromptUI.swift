@@ -37,4 +37,6 @@ import MetalFocusCore
     func showNudge(_ item: OutboxItem, deadline: Date) { nudges.show(item, avoiding: checkin.map { [$0] } ?? []) }
 
     func closeNudge(outboxId: Int64) { nudges.close(outboxId: outboxId) }
+
+    func notify(id: String, title: String, body: String) { nudges.post(id: id, title: title, body: body) }
 }

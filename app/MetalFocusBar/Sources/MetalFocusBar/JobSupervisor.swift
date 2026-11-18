@@ -23,6 +23,8 @@ import MetalFocusCore
     private var lastStart: [String: Date] = [:]
     /// Why jobs are paused (shown in the popover), or nil.
     private(set) var problem: String?
+    /// Called on the main actor when a job exits by itself: (name, exit code). Not for signal deaths.
+    var onExit: ((String, Int32) -> Void)?
 
     /// Called every few seconds from the app's loop.
     func tick(now: Date = Date()) {
@@ -102,6 +104,7 @@ import MetalFocusCore
         let code = status & 0x7f == 0 ? (status >> 8) & 0xff : -(status & 0x7f)  // exit code, or -signal
         lastExit[name] = code
         if code != 0 { appLog.error("jobs: \(name, privacy: .public) exited \(code)") }
+        if code >= 0 { onExit?(name, code) }  // a signal means we stopped it (redeploy, quit)
     }
 
     private static func persistedStart(_ name: String) -> Date? {

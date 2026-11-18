@@ -52,6 +52,16 @@ import UserNotifications
         center.add(UNNotificationRequest(identifier: Self.requestId(item.outboxId), content: content, trigger: nil))
     }
 
+    /// A plain informational notification (no buttons, no sound). Dropped when notifications are off.
+    func post(id: String, title: String, body: String) {
+        guard let center, allowed else { return }
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = nil
+        center.add(UNNotificationRequest(identifier: id, content: content, trigger: nil))
+    }
+
     func close(outboxId: Int64) {
         panels.removeValue(forKey: outboxId)?.close()
         guard let center else { return }

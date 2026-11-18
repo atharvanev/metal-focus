@@ -90,6 +90,14 @@ final class AppModel {
     /// The background jobs (HSMM runner, nightly, check-ins) run as children of the app; see JobSupervisor.
     /// They wait and retry on their own when the DB or key isn't ready, so they start regardless.
     private func startJobs() {
+        jobs.onExit = { [weak self] name, code in
+            guard name == "hsmm-nightly" else { return }
+            let log = DataHome.directory().appendingPathComponent("hsmm-nightly.out.log")
+            let last = (try? String(contentsOf: log, encoding: .utf8))?
+                .split(whereSeparator: \.isNewline).last.map(String.init)
+            let m = NightlySummary.message(lastLine: last, exitCode: code)
+            self?.promptUI?.notify(id: "nightly-\(Int(Date().timeIntervalSince1970))", title: m.title, body: m.body)
+        }
         jobLoop = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
