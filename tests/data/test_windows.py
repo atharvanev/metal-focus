@@ -74,7 +74,7 @@ def test_away_by_idle(rules):
 def test_partly_idle_is_not_away(rules):
     samples = fill(NOON, 15, idle_s=200.0) + fill(NOON + 60, 15)
     [w] = build(samples, rules)
-    assert w.idle_seconds == pytest.approx(60 + 15 * 0.5, abs=0.01) and not w.is_away
+    assert w.idle_seconds == pytest.approx(60, abs=0.01) and not w.is_away  # one 60 s stretch; the 0.5 s gaps after it are not added
 
 
 def test_away_by_lock(rules):
@@ -211,3 +211,15 @@ def test_short_spotify_stays_neutral(rules):
 
 def test_excluded_never_escalates(rules):
     assert [w.category for w in run([EXCL] * 3, rules)] == ["Excluded"] * 3
+
+
+def test_short_pauses_while_active_are_not_summed_into_away(rules):
+    # typing every few seconds: each sample sees a 3.5 s gap; 30 of them must not add up to 105 s idle
+    [w] = build(fill(NOON, 30, idle_s=3.5), rules)
+    assert w.idle_seconds == pytest.approx(3.5, abs=0.01) and not w.is_away
+
+
+def test_idle_stretch_from_previous_window_counts(rules):
+    # untouched since before the window: the whole window is one idle stretch
+    [w] = build(fill(NOON, 30, idle_s=500.0, key=0), rules)
+    assert w.idle_seconds == pytest.approx(120, abs=0.01) and w.is_away
