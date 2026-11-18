@@ -42,7 +42,7 @@ struct PopoverView: View {
                 LegacyAgentBanner(title: "Background jobs paused", detail: problem)
             }
             SettingsModule(model: model)
-            Footer(model: model)
+            Footer()
         }
         .padding(12)
         .frame(width: 340)
@@ -72,6 +72,12 @@ private struct Header: View {
                 .font(.headline)
             Spacer()
             StatusChip(text: chip.0, color: chip.1)
+            Button { model.openViewer() } label: {
+                Label("Viewer", systemImage: "rectangle.split.3x1")
+            }
+            .controlSize(.small)
+            .disabled(model.store == nil)
+            .help("Open the day viewer")
         }
         .padding(.horizontal, 4)
         .padding(.bottom, 2)
@@ -461,18 +467,7 @@ private struct ErrorModule: View {
 }
 
 private struct Footer: View {
-    let model: AppModel
-
     var body: some View {
-        Button { model.openViewer() } label: {
-            HStack {
-                Label("Open viewer", systemImage: "rectangle.split.3x1")
-                Spacer()
-            }
-            .font(.callout)
-        }
-        .buttonStyle(RowButtonStyle())
-        .disabled(model.store == nil)
         Button {
             NSApp.terminate(nil)
         } label: {
